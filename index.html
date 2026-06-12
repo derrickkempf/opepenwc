@@ -267,25 +267,121 @@
   <div class="toast" id="toast"></div>
   <div class="flash" id="flash"></div>
 
+<!-- Supabase client (only used when SUPABASE_URL / SUPABASE_ANON_KEY are set below) -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 /* ============================================================
-   window.storage — same interface as the reference repo's
-   storage.js (get/set/list/delete). localStorage-backed here.
+   BACKEND CONFIG  ← fill these two in to go live & shared.
+   Get them from Supabase: Project Settings → API.
+   The anon/publishable key is safe to expose in the browser.
+   Leave both blank to run in local-only demo mode (this device).
+   ============================================================ */
+const SUPABASE_URL      = "";  // e.g. "https://abcdefgh.supabase.co"
+const SUPABASE_ANON_KEY = "";  // e.g. "sb_publishable_..." or the legacy anon key
+
+const SHARED = !!(SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase);
+const sb = SHARED ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:true, flowType:"implicit" }
+}) : null;
+
+/* ============================================================
+   window.storage — same get/set/delete/list interface as the
+   reference repo. Shared keys (the match + every vote) live in
+   Supabase; device-only keys (your identity) stay in localStorage.
+   Reads are served from an in-memory cache hydrated on boot and
+   kept fresh by realtime, so the rest of the app stays synchronous.
    ============================================================ */
 const LS = (k)=>"owc:"+k;
+const cache = {};                                   // shared kv mirror: key -> value(string)
+function sharedKey(k){ return k==="match" || k.startsWith("vote:"); }
+
 window.storage = {
-  get(key){ const v=localStorage.getItem(LS(key)); return v==null?null:{key,value:v}; },
-  set(key,value){ localStorage.setItem(LS(key), value); return {key,value}; },
-  delete(key){ localStorage.removeItem(LS(key)); return {key,deleted:true}; },
-  list(prefix=""){ const out=[]; const pre=LS(prefix);
+  get(key){
+    if(SHARED && sharedKey(key)) return (key in cache) ? {key,value:cache[key]} : null;
+    const v=localStorage.getItem(LS(key)); return v==null?null:{key,value:v};
+  },
+  set(key,value){
+    if(SHARED && sharedKey(key)){
+      cache[key]=value;
+      sb.from("kv").upsert({key,value,updated_at:new Date().toISOString()},{onConflict:"key"})
+        .then(({error})=>{ if(error) console.warn("[kv set]",key,error.message); });
+      return {key,value};
+    }
+    localStorage.setItem(LS(key),value); return {key,value};
+  },
+  delete(key){
+    if(SHARED && sharedKey(key)){
+      delete cache[key];
+      sb.from("kv").delete().eq("key",key)
+        .then(({error})=>{ if(error) console.warn("[kv del]",key,error.message); });
+      return {key,deleted:true};
+    }
+    localStorage.removeItem(LS(key)); return {key,deleted:true};
+  },
+  list(prefix=""){
+    if(SHARED){ return {keys:Object.keys(cache).filter(k=>k.startsWith(prefix)),prefix}; }
+    const out=[]; const pre=LS(prefix);
     for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);
-      if(k&&k.startsWith(pre)) out.push(k.slice(4));} return {keys:out,prefix}; }
+      if(k&&k.startsWith(pre)) out.push(k.slice(4));}
+    return {keys:out,prefix};
+  }
 };
 const J = {
   get(key,fallback){ const r=window.storage.get(key); if(!r) return fallback;
     try{return JSON.parse(r.value);}catch{return fallback;} },
   set(key,obj){ window.storage.set(key, JSON.stringify(obj)); }
 };
+
+/* ---- hydrate the cache + subscribe to realtime changes ---- */
+async function hydrate(){
+  if(!SHARED) return;
+  const {data,error}=await sb.from("kv").select("key,value");
+  if(error){ console.warn("[hydrate]",error.message); return; }
+  (data||[]).forEach(r=>{ cache[r.key]=r.value; });
+}
+let _live=null;
+function liveRefresh(){ clearTimeout(_live);
+  _live=setTimeout(()=>{ if(!location.hash.startsWith("#/admin")) render(); },150); }
+function subscribeRealtime(){
+  if(!SHARED) return;
+  sb.channel("kv-live")
+    .on("postgres_changes",{event:"*",schema:"public",table:"kv"},payload=>{
+      const row=payload.new||payload.old; if(!row||!row.key) return;
+      if(payload.eventType==="DELETE") delete cache[row.key];
+      else cache[row.key]=row.value;
+      liveRefresh();
+    }).subscribe();
+}
+
+/* ---- Supabase Auth: real email magic links ----
+   Adopts the verified email from a Supabase session as the app identity, and
+   keeps it in sync when the user returns from clicking a magic link. */
+function adoptEmailSession(email){
+  if(!email) return;
+  setIdentity({ type:"email", id:"e:"+email.toLowerCase(), label:email,
+                short:email.split("@")[0], verified:true });
+}
+async function initAuth(){
+  if(!SHARED) return;
+  try{
+    const { data:{ session } } = await sb.auth.getSession();
+    if(session && session.user && session.user.email) adoptEmailSession(session.user.email);
+    sb.auth.onAuthStateChange((event, session)=>{
+      if(session && session.user && session.user.email){
+        const had=getIdentity();
+        adoptEmailSession(session.user.email);
+        if(!had || had.id!=="e:"+session.user.email.toLowerCase()){
+          flash("Checked in as "+session.user.email);
+          // strip the auth tokens the magic link left in the URL, then refresh the view
+          if(location.hash && location.hash.indexOf("access_token")!==-1){
+            history.replaceState(null,"", location.pathname+location.search);
+          }
+          render();
+        }
+      }
+    });
+  }catch(e){ console.warn("[auth]",e); }
+}
 
 /* ============================================================
    Config + state
@@ -298,12 +394,39 @@ const TICKER_ITEMS = [
   "CHOOSE YOUR FAVORITE OPEPEN","OPEPENWC26/SPONSOR"
 ];
 
+/* ---- Built-in matchup artwork (vector Opepens, embedded as data URIs) ---- */
+const SVG_LEFT = `<svg xmlns='http://www.w3.org/2000/svg' width='1080' height='1080' viewBox='0 0 1080 1080'>
+<rect width='1080' height='1080' fill='#abceee'/>
+<rect x='270' y='265' width='135' height='550' fill='#ffffff'/>
+<rect x='405' y='265' width='270' height='550' fill='#6fa8dc'/>
+<rect x='675' y='265' width='135' height='550' fill='#ffffff'/>
+<rect x='270' y='945' width='540' height='135' fill='#f5b81f'/>
+</svg>`;
+const SVG_RIGHT = `<svg xmlns='http://www.w3.org/2000/svg' width='1080' height='1080' viewBox='0 0 1080 1080'>
+<rect width='1080' height='1080' fill='#181818'/>
+<rect x='270' y='265' width='135' height='138' fill='#000000'/>
+<rect x='405' y='265' width='270' height='138' fill='#ffffff'/>
+<rect x='675' y='265' width='135' height='138' fill='#000000'/>
+<rect x='270' y='403' width='135' height='138' fill='#e00000'/>
+<rect x='405' y='403' width='270' height='138' fill='#000000'/>
+<rect x='675' y='403' width='135' height='138' fill='#e00000'/>
+<rect x='270' y='541' width='135' height='138' fill='#ffc400'/>
+<rect x='405' y='541' width='270' height='138' fill='#e00000'/>
+<rect x='675' y='541' width='135' height='138' fill='#ffc400'/>
+<rect x='270' y='679' width='135' height='138' fill='#ffffff'/>
+<rect x='405' y='679' width='270' height='138' fill='#ffc400'/>
+<rect x='675' y='679' width='135' height='138' fill='#ffffff'/>
+<rect x='270' y='945' width='540' height='135' fill='#ffffff'/>
+</svg>`;
+const LEFT_OPEPEN  = "data:image/svg+xml;base64,"+btoa(SVG_LEFT);
+const RIGHT_OPEPEN = "data:image/svg+xml;base64,"+btoa(SVG_RIGHT);
+
 function defaultMatch(){
   return {
-    id:"m"+Date.now(),
+    id:"m-default",   // stable id so all visitors share one match until an admin publishes a new one
     edition:40,
     title:"Which Opepen wins?",
-    leftImg:null, rightImg:null,
+    leftImg:LEFT_OPEPEN, rightImg:RIGHT_OPEPEN,
     startTime:Date.now(),
     durationMin:DEFAULT_DURATION,
     seedLeft:0, seedRight:0
@@ -312,6 +435,8 @@ function defaultMatch(){
 function getMatch(){
   let m=J.get("match",null);
   if(!m){ m=defaultMatch(); J.set("match",m); }
+  // Backfill the built-in artwork for matches saved before images existed.
+  if(!m.leftImg && !m.rightImg){ m.leftImg=LEFT_OPEPEN; m.rightImg=RIGHT_OPEPEN; J.set("match",m); }
   return m;
 }
 function getIdentity(){ return J.get("identity",null); }
@@ -319,9 +444,17 @@ function setIdentity(id){ J.set("identity",id); }
 function clearIdentity(){ window.storage.delete("identity"); }
 
 /* votes for a match: { identityId: {side, firstTs, voteTs, changes} } */
-function votesKey(mId){ return "votes:"+mId; }
-function getVotes(mId){ return J.get(votesKey(mId), {}); }
-function setVotes(mId,v){ J.set(votesKey(mId), v); }
+/* One row per voter so concurrent votes never overwrite each other:
+   key = "vote:<matchId>:<identityId>"  value = {side,firstTs,voteTs,changes} */
+function votePrefix(mId){ return "vote:"+mId+":"; }
+function voteKey(mId,idId){ return "vote:"+mId+":"+idId; }
+function getVotes(mId){
+  const pre=votePrefix(mId);
+  const {keys}=window.storage.list(pre);
+  const out={};
+  keys.forEach(k=>{ const rec=J.get(k,null); if(rec) out[k.slice(pre.length)]=rec; });
+  return out;
+}
 
 function tally(m){
   const v=getVotes(m.id);
@@ -331,19 +464,19 @@ function tally(m){
 }
 function matchEnded(m){ return Date.now() >= m.startTime + m.durationMin*60000; }
 function myVote(m){ const id=getIdentity(); if(!id) return null;
-  return getVotes(m.id)[id.id]||null; }
+  return J.get(voteKey(m.id,id.id),null); }
 
 function castVote(m, side){
   const id=getIdentity(); if(!id) return;
-  const v=getVotes(m.id);
-  const now=Date.now();
-  if(v[id.id]){
-    if(v[id.id].side!==side){ v[id.id].side=side; v[id.id].changes=(v[id.id].changes||0)+1;
-      v[id.id].voteTs=now; }
-  } else {
-    v[id.id]={side, firstTs:now, voteTs:now, changes:0};
-  }
-  setVotes(m.id,v);
+  const key=voteKey(m.id,id.id);
+  const cur=J.get(key,null); const now=Date.now();
+  let rec;
+  if(cur){ rec=cur; if(cur.side!==side){ rec={side, firstTs:cur.firstTs, voteTs:now, changes:(cur.changes||0)+1}; } }
+  else { rec={side, firstTs:now, voteTs:now, changes:0}; }
+  J.set(key,rec);
+}
+function resetMatchVotes(mId){
+  window.storage.list(votePrefix(mId)).keys.forEach(k=>window.storage.delete(k));
 }
 
 /* ============================================================
@@ -582,7 +715,10 @@ function viewAccount(app){
       <p style="font-family:var(--mono);font-size:15px;word-break:break-all;margin-bottom:26px">${id.label}</p>
       <button class="btn-ghost" id="signout">Sign out</button>
     </div>`;
-  app.querySelector("#signout").onclick=()=>{ clearIdentity(); flash("Signed out"); location.hash="#/"; };
+  app.querySelector("#signout").onclick=()=>{
+    if(SHARED && getIdentity() && getIdentity().type==="email"){ try{ sb.auth.signOut(); }catch(e){} }
+    clearIdentity(); flash("Signed out"); location.hash="#/";
+  };
 }
 
 /* ---------- Content pages ---------- */
@@ -722,7 +858,7 @@ function viewAdmin(app){
     location.hash="#/";
   };
   app.querySelector("#resetVotes").onclick=()=>{
-    window.storage.delete(votesKey(m.id)); toast("Votes reset"); viewAdmin(app);
+    resetMatchVotes(m.id); toast("Votes reset"); viewAdmin(app);
   };
   app.querySelector("#signout").onclick=()=>{ sessionStorage.removeItem("owc_admin"); viewAdmin(app); };
 }
@@ -763,18 +899,33 @@ function openCheckIn(onDone){
     step.querySelector("#email").addEventListener("keydown",e=>{if(e.key==="Enter")sendLink();});
   }
 
-  function sendLink(){
+  async function sendLink(){
     const email=step.querySelector("#email").value.trim();
-    const err=step.querySelector("#emErr");
+    const err=step.querySelector("#emErr"); err.style.display="none";
     if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ err.style.display="block"; err.textContent="Enter a valid email address"; return; }
-    // No mail server in this self-contained build: simulate the magic-link round-trip.
-    const token=Math.random().toString(36).slice(2,8).toUpperCase();
+
+    if(SHARED){
+      // Real Supabase Auth magic link. The user finishes by clicking the emailed link,
+      // which returns them here already signed in (handled by initAuth/onAuthStateChange).
+      const btn=step.querySelector("#sendLink"); btn.disabled=true; btn.textContent="Sending…";
+      const redirectTo=location.origin+location.pathname;   // back to the app root (hash router safe)
+      const { error }=await sb.auth.signInWithOtp({ email, options:{ emailRedirectTo:redirectTo } });
+      if(error){ err.style.display="block"; err.textContent=error.message||"Could not send the link"; btn.disabled=false; btn.textContent="Send magic link"; return; }
+      step.innerHTML=`
+        <p class="lead" style="margin-bottom:18px">Magic link sent to <b style="color:var(--fg)">${email}</b>. Open the email and click the link to finish checking in — it'll bring you right back here, signed in.</p>
+        <button class="btn-ghost" id="back">Use a different method</button>
+        <p class="note">Didn't get it? Check spam, or wait a minute before requesting another (links are rate-limited). You can close this window — clicking the link is all that's needed.</p>`;
+      step.querySelector("#back").onclick=chooser;
+      return;
+    }
+
+    // Local-only demo (no Supabase configured): trust-based check-in, no email sent.
     step.innerHTML=`
-      <p class="lead" style="margin-bottom:18px">We sent a magic link to <b style="color:var(--fg)">${email}</b>. Open it to finish checking in.</p>
-      <button class="btn-primary" id="useLink">Open magic link →</button>
+      <p class="lead" style="margin-bottom:18px">Demo mode (no email backend configured). Checking in as <b style="color:var(--fg)">${email}</b>.</p>
+      <button class="btn-primary" id="useLink">Continue →</button>
       <button class="btn-ghost" id="back" style="margin-top:12px">Use a different method</button>
-      <p class="note">Demo note: this single-file build has no mail server, so the link is simulated here (token ${token}). The deployed Supabase build emails a real link that lands the user back on this screen, checked in.</p>`;
-    step.querySelector("#useLink").onclick=()=>finish({type:"email",id:"e:"+email.toLowerCase(),label:email,short:email.split("@")[0]});
+      <p class="note">Once SUPABASE_URL / SUPABASE_ANON_KEY are set and email auth is enabled, this sends a real verified magic link instead.</p>`;
+    step.querySelector("#useLink").onclick=()=>finish({type:"email",id:"e:"+email.toLowerCase(),label:email,short:email.split("@")[0],verified:false});
     step.querySelector("#back").onclick=chooser;
   }
 
@@ -786,14 +937,41 @@ function openCheckIn(onDone){
       step.querySelector("#back").onclick=chooser; return;
     }
     try{
-      step.innerHTML=`<p class="lead">Check your wallet to approve the connection and sign…</p>`;
+      step.innerHTML=`<p class="lead">Connecting… approve in your wallet.</p>`;
       const accounts=await window.ethereum.request({method:"eth_requestAccounts"});
       const addr=accounts[0];
-      const nonce=Math.random().toString(36).slice(2,10);
-      const msg=`Opepen World Cup check-in\nAddress: ${addr}\nNonce: ${nonce}`;
-      await window.ethereum.request({method:"personal_sign",params:[msg,addr]});
-      const short=addr.slice(0,6)+"…"+addr.slice(-4);
-      finish({type:"wallet",id:"w:"+addr.toLowerCase(),label:short,short});
+
+      // Ask the server for a one-time nonce + message. If the API isn't deployed
+      // (e.g. opening the file locally), fall back to a client-only signature.
+      let message=null, serverVerify=false;
+      try{
+        const r=await fetch("/api/wallet",{method:"POST",headers:{"content-type":"application/json"},
+          body:JSON.stringify({action:"nonce",address:addr})});
+        if(r.ok){ const d=await r.json(); if(d&&d.message){ message=d.message; serverVerify=true; } }
+      }catch(_){ /* API unavailable -> fallback */ }
+      if(!message){
+        const nonce=Math.random().toString(36).slice(2,10);
+        message=`Opepen World Cup check-in\nAddress: ${addr}\nNonce: ${nonce}`;
+      }
+
+      step.innerHTML=`<p class="lead">Check your wallet and sign the message to verify ownership…</p>`;
+      const signature=await window.ethereum.request({method:"personal_sign",params:[message,addr]});
+
+      let verifiedAddr=addr.toLowerCase(), verified=false;
+      if(serverVerify){
+        const v=await fetch("/api/wallet",{method:"POST",headers:{"content-type":"application/json"},
+          body:JSON.stringify({action:"verify",address:addr,message,signature})});
+        const d=await v.json().catch(()=>({}));
+        if(!v.ok || !d.ok){
+          step.innerHTML=`<p class="lead" style="margin-bottom:18px">Couldn't verify that signature${d&&d.error?` (${d.error})`:""}.</p>
+            <button class="btn-ghost" id="back">Try again</button>`;
+          step.querySelector("#back").onclick=chooser; return;
+        }
+        verifiedAddr=d.address; verified=true;   // server recovered + matched the signer
+      }
+
+      const short=verifiedAddr.slice(0,6)+"…"+verifiedAddr.slice(-4);
+      finish({type:"wallet",id:"w:"+verifiedAddr,label:short,short,verified});
     }catch(err){
       step.innerHTML=`<p class="lead" style="margin-bottom:18px">Wallet check-in was cancelled or failed.</p>
         <button class="btn-ghost" id="back">Try again</button>`;
@@ -830,9 +1008,14 @@ function render(){
   return viewVote(app);
 }
 
-renderTicker();
-window.addEventListener("hashchange",render);
-render();
+async function boot(){
+  renderTicker();
+  console.info("[OWC] data mode:", SHARED ? "shared (Supabase)" : "local-only (this device)");
+  if(SHARED){ try{ await hydrate(); subscribeRealtime(); await initAuth(); }catch(e){ console.warn("[boot]",e); } }
+  window.addEventListener("hashchange",render);
+  render();
+}
+boot();
 </script>
 </body>
 </html>
