@@ -4,7 +4,7 @@ import AnimatedNumber from './components/AnimatedNumber.jsx';
 import {
   ROSTER_COUNT, ROUNDS, SCHEDULE, START_BASE, ADMIN_PASSCODE, COLORS, KICKOFF_S,
   rosterImg, teamName, groupLetter, championOdds,
-  fxTeams, fxMatchId, status, matchClock, canVote, winnerOf, champion, nextFixture, liveFixture,
+  fxTeams, fxMatchId, status, matchClock, canVote, winnerOf, champion, nextFixture, liveFixture, currentFixture,
   tallyMatch, myVoteFor, castShot, resetAllVotes, matchStats, shotReaction, shotKind, teamSub,
   tp, earnShare, earnOnce, dailyCheckIn, placeWager, resolveWagers, matchOdds,
   getPicks, setPick, predictionCount, predictedChampion,
@@ -73,6 +73,102 @@ function fmtLongDate(ts) { return new Date(ts).toLocaleDateString('en-US', { mon
 /* ===== HOME / LANDING (root route #/) =====
    Marketing landing on the black/gold/Geist theme. CTAs start the game via
    ctx.login(). The live match lives at #/play. */
+/* Fade-in-on-scroll: adds .is-in once the element enters the viewport.
+   IntersectionObserver only (no deps); respects reduced-motion via CSS. */
+function useFadeIn() {
+  const ref = useRef(null);
+  useEffect(() => {
+    const el = ref.current; if (!el) return undefined;
+    if (typeof IntersectionObserver === 'undefined') { el.classList.add('is-in'); return undefined; }
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('is-in'); io.unobserve(e.target); } });
+    }, { threshold: 0.15 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  return ref;
+}
+function FadeSection({ className, children }) {
+  const ref = useFadeIn();
+  return <section ref={ref} className={'fade-up ' + (className || '')}>{children}</section>;
+}
+
+/* Mini live-board mockup for the How-It-Works sticky media (visual only). */
+function MiniBoard({ aId, bId, variant }) {
+  return (
+    <div className={'hiw-board' + (variant ? ' ' + variant : '')}>
+      <div className="hiw-halves">
+        <div className="hiw-half" style={{ backgroundImage: `url('${rosterImg(aId)}')` }} />
+        <div className="hiw-half" style={{ backgroundImage: `url('${rosterImg(bId)}')` }} />
+      </div>
+      <FieldSvg />
+      <div className="hiw-goal l" /><div className="hiw-goal r" />
+    </div>
+  );
+}
+
+/* Sticky split-screen How-It-Works (superhi-style): the LEFT column is sticky
+   and swaps its visual as each step scrolls past on the RIGHT, via an
+   IntersectionObserver tracking which step is centered. */
+function HowItWorks({ steps }) {
+  const [active, setActive] = useState(0);
+  const stepRefs = useRef([]);
+  useEffect(() => {
+    const els = stepRefs.current.filter(Boolean);
+    if (!els.length || typeof IntersectionObserver === 'undefined') return undefined;
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((e) => { if (e.isIntersecting) { const i = Number(e.target.dataset.idx); setActive(i); } });
+    }, { rootMargin: '-45% 0px -45% 0px', threshold: 0 });
+    els.forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  }, [steps]);
+
+  const visuals = [
+    // 1) two artworks appear / live board
+    <MiniBoard key="v0" aId={5} bId={36} variant="ko" />,
+    // 2) speed shapes the shot — 8x8 grid with a centered "goal" cell highlighted
+    (
+      <div key="v1" className="hiw-board">
+        <MiniBoard aId={11} bId={30} />
+        <div className="hiw-grid">
+          {Array.from({ length: 64 }, (_, i) => {
+            const r = Math.floor(i / 8), c = i % 8;
+            const goal = (r === 3 || r === 4) && (c === 0 || c === 7);
+            return <span key={i} className={'hiw-cell' + (goal ? ' goal' : '')} />;
+          })}
+        </div>
+      </div>
+    ),
+    // 3) the winner — centered artwork on a green field
+    (
+      <div key="v2" className="hiw-board hiw-winner">
+        <div className="hiw-winart" style={{ backgroundImage: `url('${rosterImg(11)}')` }} />
+        <div className="hiw-winlbl">WINNER!</div>
+      </div>
+    ),
+  ];
+
+  return (
+    <div className="hiw-split">
+      <div className="hiw-sticky">
+        <div className="hiw-stage">
+          {visuals.map((v, i) => (
+            <div key={i} className={'hiw-vis' + (active === i ? ' on' : '')}>{v}</div>
+          ))}
+        </div>
+      </div>
+      <ol className="hiw-steps">
+        {steps.map(([h, b], i) => (
+          <li className={'hiw-step' + (active === i ? ' on' : '')} key={i} data-idx={i} ref={(el) => { stepRefs.current[i] = el; }}>
+            <span className="hl-step-n">{i + 1}</span>
+            <div><div className="hl-step-h">{h}</div><div className="hl-step-b">{b}</div></div>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
 export function ViewHome({ ctx }) {
   const go = () => ctx.login();
   const steps = [
@@ -83,46 +179,39 @@ export function ViewHome({ ctx }) {
   return (
     <div className="home-landing">
       {/* HERO */}
-      <section className="hl-hero">
+      <FadeSection className="hl-hero">
         <h1 className="hl-h1">Your Gut Vote Counts More Than Your Considered One</h1>
         <p className="hl-sub">40 artworks enter. One lifts the Cup. How fast you decide shapes how much your vote counts.</p>
-      </section>
+      </FadeSection>
 
       {/* FIELD GRAPHIC + KICKOFF */}
-      <section className="hl-field-sec">
+      <FadeSection className="hl-field-sec">
         <div className="hl-field"><FieldSvg /></div>
         <div className="hl-kickoff">The Art World Cup Begins</div>
         <div className="hl-date">July 1st @ 7:00 PM UTC</div>
         <button className="hl-cta-green" onClick={go}>Sign Up to Play</button>
-      </section>
+      </FadeSection>
 
       {/* INSTINCT VS POPULARITY */}
-      <section className="hl-block">
+      <FadeSection className="hl-block">
         <h2 className="hl-h2">Most art competitions reward popularity. This one rewards instinct.</h2>
         <p className="hl-sub">Hesitation isn't neutrality … it's a miss. Your first reaction is your real opinion.</p>
-      </section>
+      </FadeSection>
 
-      {/* HOW IT WORKS */}
-      <section className="hl-block">
+      {/* HOW IT WORKS — sticky split-screen */}
+      <FadeSection className="hl-block hl-hiw">
         <h2 className="hl-h2">How It Works …</h2>
-        <ol className="hl-steps">
-          {steps.map(([h, b], i) => (
-            <li className="hl-step" key={i}>
-              <span className="hl-step-n">{i + 1}</span>
-              <div><div className="hl-step-h">{h}</div><div className="hl-step-b">{b}</div></div>
-            </li>
-          ))}
-        </ol>
-      </section>
+        <HowItWorks steps={steps} />
+      </FadeSection>
 
       {/* GREEN BAND */}
-      <section className="hl-green-band">
+      <FadeSection className="hl-green-band">
         <h2 className="hl-band-h">Instinct Is Honest. Deliberation Is a Story You Tell Yourself.</h2>
         <button className="hl-cta-dark" onClick={go}>Sign Up to Play</button>
-      </section>
+      </FadeSection>
 
       {/* CLOSING — 40 artworks grid with trophy in the middle */}
-      <section className="hl-block">
+      <FadeSection className="hl-block">
         <h2 className="hl-h2">The Art World Cup</h2>
         <p className="hl-sub">40 artworks enter. One artwork lifts the Cup.</p>
         <div className="hl-roster">
@@ -137,7 +226,7 @@ export function ViewHome({ ctx }) {
             );
           })}
         </div>
-      </section>
+      </FadeSection>
     </div>
   );
 }
@@ -155,8 +244,7 @@ export function ViewPlay({ ctx, loginOnMount }) {
     return () => clearInterval(iv);
   }, [rerender]);
 
-  const live = liveFixture();
-  const f = live || nextFixture();
+  const f = currentFixture();
   const fxId = f ? f.id : 'none';
 
   return (
@@ -279,11 +367,42 @@ function Board({ children, phaseClass, matchId, onEdit }) {
 function BoardState({ big, lbl, attrs }) {
   return (
     <div className="board-state">
-      {big != null && <div className="bs-big"><span {...(attrs || {})}>{big}</span></div>}
-      {lbl && <div className="bs-lbl">{lbl}</div>}
+      {big != null && <div className="bs-big bs-blend"><span {...(attrs || {})}>{big}</span></div>}
+      {lbl && <div className="bs-lbl bs-blend">{lbl}</div>}
     </div>
   );
 }
+
+/* Pixel confetti — a one-shot burst of small colored squares that fall/scatter
+   for ~2.6s then stop. Memoized off `seed` so it is generated once when FT is
+   entered (not rebuilt every per-second tick). Pure CSS animation, no deps. */
+const Confetti = React.memo(function Confetti({ seed }) {
+  const pieces = React.useMemo(() => {
+    let h = 0; const str = String(seed);
+    for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) | 0;
+    const rnd = () => { h = (h * 1103515245 + 12345) & 0x7fffffff; return (h % 1000) / 1000; };
+    return Array.from({ length: 44 }, () => ({
+      left: rnd() * 100,
+      delay: rnd() * 0.5,
+      dur: 1.8 + rnd() * 1.0,
+      drift: (rnd() - 0.5) * 80,
+      size: 6 + Math.round(rnd() * 8),
+      color: COLORS[Math.floor(rnd() * COLORS.length)],
+      spin: rnd() * 720 - 360,
+    }));
+  }, [seed]);
+  return (
+    <div className="confetti" aria-hidden="true">
+      {pieces.map((p, i) => (
+        <span key={i} className="confetti-pc" style={{
+          left: p.left + '%', width: p.size, height: p.size, background: p.color,
+          animationDelay: p.delay + 's', animationDuration: p.dur + 's',
+          '--drift': p.drift + 'px', '--spin': p.spin + 'deg',
+        }} />
+      ))}
+    </div>
+  );
+});
 
 function Scoreboard({ t, tl, finished, winner }) {
   const lWin = finished && winner === t.a, rWin = finished && winner === t.b;
@@ -393,9 +512,7 @@ function CircularBracket() {
 
 /* ── Match Center — single-column, per-second state machine ── */
 function MatchCenter({ ctx, rerender }) {
-  const live = liveFixture();
-  const nf = nextFixture();
-  const f = live || nf;
+  const f = currentFixture();
 
   // Tournament over → champion screen.
   if (!f) {
@@ -491,7 +608,7 @@ function MatchPanel({ ctx, f, rerender }) {
   /* ---- KICKOFF / UPCOMING ---- */
   if (phase === 'up' || phase === 'KO') {
     const num = phase === 'KO' ? mc.remain : Math.max(0, Math.ceil((f.kickoff - Date.now()) / 1000));
-    const koState = <div className="board-state"><div className="bs-lbl">KICKOFF IN <AnimatedNumber value={num} suffix="S" /></div></div>;
+    const koState = <div className="board-state"><div className="bs-lbl bs-blend">KICKOFF IN <AnimatedNumber value={num} suffix="S" /></div></div>;
     return (
       <div className="match-fade">
         {TitleRow}{StatusRow}
@@ -510,8 +627,8 @@ function MatchPanel({ ctx, f, rerender }) {
   if (phase === 'HT') {
     const htState = (
       <div className="board-state">
-        <div className="bs-big"><span>HALFTIME</span></div>
-        <div className="bs-lbl"><AnimatedNumber value={mc.remain} suffix="S" /></div>
+        <div className="bs-big bs-blend"><span>HALFTIME</span></div>
+        <div className="bs-lbl bs-blend"><AnimatedNumber value={mc.remain} suffix="S" /></div>
       </div>
     );
     return (
@@ -528,25 +645,27 @@ function MatchPanel({ ctx, f, rerender }) {
     );
   }
 
-  /* ---- FULL TIME ---- */
+  /* ---- FULL TIME ---- (winner centered + green field + pixel confetti) */
   if (phase === 'ft') {
     const lp = tl.total ? Math.round(tl.L / tl.total * 100) : 50;
     const w = winnerOf(f.id) || (lp >= 50 ? t.a : t.b);
     const extra = (
       <>
-        <div className="ft-flank l"><span>WINNER!</span></div>
-        <div className="ft-flank r"><span>WINNER!</span></div>
-        <div className="ft-shot block" style={{ position: 'absolute', inset: 0 }}>
-          <div style={{ position: 'absolute', inset: 0, backgroundImage: `url('${rosterImg(w)}')`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
-          <FtStatLayer mId={mId} />
+        <div className="ft-winwrap">
+          <div className="ft-shot block ft-winart">
+            <div style={{ position: 'absolute', inset: 0, backgroundImage: `url('${rosterImg(w)}')`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
+            <FtStatLayer mId={mId} />
+          </div>
         </div>
+        <Confetti seed={f.id} />
+        <div className="board-state ft-winlabel"><div className="bs-big bs-blend"><span>WINNER!</span></div></div>
       </>
     );
     return (
       <div className="match-fade">
         {TitleRow}{StatusRow}
-        <Board matchId={mId} onEdit={() => setSbOpen(true)}>
-          <PitchField aId={t.a} bId={t.b} state={<BoardState />} extra={extra} />
+        <Board matchId={mId} phaseClass="ft-win" onEdit={() => setSbOpen(true)}>
+          <PitchField aId={t.a} bId={t.b} state={null} extra={extra} />
         </Board>
         <Scoreboard t={t} tl={tl} finished winner={w} />
         <p className="sb-sub">{teamName(w)} go through. Hover the artwork for the match stats layer.</p>
@@ -563,7 +682,7 @@ function MatchPanel({ ctx, f, rerender }) {
       <div className="vote-zone zr" onClick={() => vote('RGT')} />
     </div>
   );
-  const stateNode = <BoardState big={<AnimatedNumber value={mc.remain} suffix="S" />} />;
+  const stateNode = <BoardState big={<AnimatedNumber value={mc.up} suffix="S" />} />;
   const extra = reaction ? <div className="mc-reaction">{reaction}</div> : null;
   return (
     <div className="match-fade">

@@ -36,6 +36,8 @@ export function championOdds(id) { return +(1 + id / 2.2).toFixed(1); }
    Matches run BACK-TO-BACK, so the whole 39-match tournament is one ~85-minute event. ── */
 export const KICKOFF_S = 10, HALF_S = 45, HT_S = 30;
 export const MATCH_MS = (KICKOFF_S + HALF_S + HT_S + HALF_S) * 1000; // 130s
+/* Hold on the WINNER screen for 60s after full time before the next kickoff. */
+export const GAP_MS = 60000;
 /* DEMO: start ~11 min ago so the first few matches are finished and one is live now.
    For a real event, anchor to a future time instead, e.g.:
    export const START_BASE=(()=>{const d=new Date();d.setHours(d.getHours()+1,0,0,0);return d.getTime();})(); */
@@ -54,7 +56,7 @@ export const SCHEDULE = (() => {
   const out = []; let n = 0;
   ROUNDS.forEach((R) => {
     for (let i = 0; i < R.matches; i++) {
-      out.push({ id: R.key + '-' + i, rk: R.key, rn: R.name, adv: R.adv, i, kickoff: START_BASE + n * MATCH_MS });
+      out.push({ id: R.key + '-' + i, rk: R.key, rn: R.name, adv: R.adv, i, kickoff: START_BASE + n * (MATCH_MS + GAP_MS) });
       n++;
     }
   });
@@ -79,19 +81,41 @@ export function status(f) { const n = Date.now(); if (n < f.kickoff) return 'up'
    Voting is allowed only when phase is '1H' or '2H'. */
 export function matchClock(f) {
   const e = (Date.now() - f.kickoff) / 1000; // seconds since window start
-  if (e < 0) return { phase: 'up', remain: 0, txt: '—' };
-  if (e >= 130) return { phase: 'ft', remain: 0, txt: 'FT' };
-  if (e < KICKOFF_S) return { phase: 'KO', remain: Math.ceil(KICKOFF_S - e), txt: 'Kickoff ' + Math.ceil(KICKOFF_S - e) + 's' };
+  const total = KICKOFF_S + HALF_S + HT_S + HALF_S; // 130
+  if (e < 0) return { phase: 'up', remain: 0, up: 0, txt: '—' };
+  if (e >= total) return { phase: 'ft', remain: 0, up: 90, txt: 'FT' };
+  if (e < KICKOFF_S) return { phase: 'KO', remain: Math.ceil(KICKOFF_S - e), up: 0, txt: 'Kickoff ' + Math.ceil(KICKOFF_S - e) + 's' };
   const t = e - KICKOFF_S; // 0..120 across play + halftime
-  if (t < HALF_S) return { phase: '1H', half: 1, remain: Math.ceil(HALF_S - t), txt: Math.ceil(HALF_S - t) + 's' };
-  if (t < HALF_S + HT_S) return { phase: 'HT', remain: Math.ceil(HALF_S + HT_S - t), txt: 'HT ' + Math.ceil(HALF_S + HT_S - t) + 's' };
-  return { phase: '2H', half: 2, remain: Math.ceil(2 * HALF_S + HT_S - t), txt: Math.ceil(2 * HALF_S + HT_S - t) + 's' };
+  // 1st half: count UP 0..45 (seconds elapsed in the half)
+  if (t < HALF_S) { const up = Math.min(HALF_S, Math.floor(t)); return { phase: '1H', half: 1, remain: Math.ceil(HALF_S - t), up, txt: up + 's' }; }
+  // halftime: stays a COUNTDOWN
+  if (t < HALF_S + HT_S) return { phase: 'HT', remain: Math.ceil(HALF_S + HT_S - t), up: HALF_S, txt: 'HT ' + Math.ceil(HALF_S + HT_S - t) + 's' };
+  // 2nd half: count UP 45..90
+  const up = Math.min(2 * HALF_S, HALF_S + Math.floor(t - HALF_S - HT_S));
+  return { phase: '2H', half: 2, remain: Math.ceil(2 * HALF_S + HT_S - t), up, txt: up + 's' };
 }
 export function canVote(f) { const p = matchClock(f).phase; return p === '1H' || p === '2H'; }
 export function winnerOf(fid) { const f = fxById(fid); if (!f) return null; if (status(f) !== 'ft') return null; const t = fxTeams(f); if (!t.a || !t.b) return null; const tl = tallyMatch(fxMatchId(f)); if (tl.total === 0) return t.a; return tl.L >= tl.R ? t.a : t.b; }
 export const champion = () => winnerOf('r6-0');
 export function nextFixture() { const n = Date.now(); return SCHEDULE.find((f) => n < f.kickoff + MATCH_MS); } // first not-yet-finished
 export function liveFixture() { return SCHEDULE.find((f) => status(f) === 'live') || null; }
+/* The fixture to DISPLAY in the Play view, honoring the 60s post-FT hold:
+   1) the live match, if any; else
+   2) the most-recently-finished match while still inside its 60s WINNER hold
+      (now < kickoff + MATCH_MS + GAP_MS) — shown as the celebration; else
+   3) the next upcoming match (its KICKOFF IN nS countdown). */
+export function currentFixture() {
+  const n = Date.now();
+  const live = liveFixture();
+  if (live) return live;
+  // most-recently-finished still inside the post-FT hold window
+  let held = null;
+  for (const f of SCHEDULE) {
+    if (n >= f.kickoff + MATCH_MS && n < f.kickoff + MATCH_MS + GAP_MS) held = f; // last match
+  }
+  if (held) return held;
+  return nextFixture();
+}
 
 /* ===== profile (keyed by Privy identity id) ===== */
 export function getProfile(id) { if (!id) return null; return J.get('player:' + id, null); }
