@@ -124,26 +124,37 @@ function HowItWorks({ steps }) {
   }, [steps]);
 
   const visuals = [
-    // 1) two artworks appear / live board
-    <MiniBoard key="v0" aId={5} bId={36} variant="ko" />,
-    // 2) speed shapes the shot — 8x8 grid with a centered "goal" cell highlighted
+    // 1) Two artworks appear — a matchup: two roster artworks side by side on a dark panel.
     (
-      <div key="v1" className="hiw-board">
-        <MiniBoard aId={11} bId={30} />
-        <div className="hiw-grid">
+      <div key="v0" className="hiw-vstage hiw-matchup">
+        <div className="hiw-mu-art" style={{ backgroundImage: `url('${rosterImg(5)}')` }} />
+        <div className="hiw-mu-vs">VS</div>
+        <div className="hiw-mu-art" style={{ backgroundImage: `url('${rosterImg(36)}')` }} />
+      </div>
+    ),
+    // 2) Speed shapes the shot — the field with a highlighted "goal" cell + shot marker.
+    (
+      <div key="v1" className="hiw-vstage hiw-shot">
+        <FieldSvg />
+        <div className="hiw-shot-grid">
           {Array.from({ length: 64 }, (_, i) => {
             const r = Math.floor(i / 8), c = i % 8;
-            const goal = (r === 3 || r === 4) && (c === 0 || c === 7);
+            const goal = (r === 3 || r === 4) && c === 7;
             return <span key={i} className={'hiw-cell' + (goal ? ' goal' : '')} />;
           })}
         </div>
+        <div className="hiw-shot-marker" />
+        <svg className="hiw-shot-path" viewBox="0 0 100 56" preserveAspectRatio="none" aria-hidden="true">
+          <line x1="16" y1="46" x2="92" y2="28" />
+        </svg>
       </div>
     ),
-    // 3) the winner — centered artwork on a green field
+    // 3) The winner — a single artwork crowned with the trophy + a "1/1" treatment.
     (
-      <div key="v2" className="hiw-board hiw-winner">
-        <div className="hiw-winart" style={{ backgroundImage: `url('${rosterImg(11)}')` }} />
-        <div className="hiw-winlbl">WINNER!</div>
+      <div key="v2" className="hiw-vstage hiw-champ">
+        <div className="hiw-champ-art" style={{ backgroundImage: `url('${rosterImg(11)}')` }} />
+        <div className="hiw-champ-trophy"><LogoSvg /></div>
+        <div className="hiw-champ-badge">1/1</div>
       </div>
     ),
   ];
@@ -160,8 +171,11 @@ function HowItWorks({ steps }) {
       <ol className="hiw-steps">
         {steps.map(([h, b], i) => (
           <li className={'hiw-step' + (active === i ? ' on' : '')} key={i} data-idx={i} ref={(el) => { stepRefs.current[i] = el; }}>
-            <span className="hl-step-n">{i + 1}</span>
-            <div><div className="hl-step-h">{h}</div><div className="hl-step-b">{b}</div></div>
+            <span className="hiw-step-n" aria-hidden="true">{i + 1}</span>
+            <div className="hiw-step-body">
+              <div className="hiw-step-h">{h}</div>
+              <div className="hiw-step-b">{b}</div>
+            </div>
           </li>
         ))}
       </ol>
@@ -276,17 +290,17 @@ export function ViewHome({ ctx }) {
       <FadeSection className="hl-block">
         <h2 className="hl-h2">The Art World Cup</h2>
         <p className="hl-sub">40 artworks enter. One artwork lifts the Cup.</p>
-        <div className="hl-roster">
-          {Array.from({ length: ROSTER_COUNT }, (_, i) => {
-            const id = i + 1;
-            return (
-              <React.Fragment key={id}>
-                {/* drop the trophy logo into the middle of the grid */}
-                {i === 18 ? <div className="hl-trophy"><LogoSvg /></div> : null}
-                <div className="hl-tile"><img src={rosterImg(id)} alt={teamName(id)} loading="lazy" /></div>
-              </React.Fragment>
-            );
-          })}
+        <div className="hl-rosterwrap">
+          <div className="hl-roster">
+            {Array.from({ length: ROSTER_COUNT }, (_, i) => {
+              const id = i + 1;
+              return (
+                <div className="hl-tile" key={id}><img src={rosterImg(id)} alt={teamName(id)} loading="lazy" /></div>
+              );
+            })}
+          </div>
+          {/* trophy centered ON TOP of the dimmed grid, large with a big drop shadow */}
+          <div className="hl-trophy" aria-hidden="true"><LogoSvg /></div>
         </div>
       </FadeSection>
     </div>
