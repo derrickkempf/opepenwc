@@ -268,7 +268,7 @@ function getMqCfg(matchId) {
 function setMqCfg(matchId, cfg) {
   if (!matchId) return;
   try {
-    if (cfg && (cfg.text || cfg.img)) localStorage.setItem(mqKey(matchId), JSON.stringify(cfg));
+    if (cfg && (cfg.text || cfg.img || cfg.color || cfg.bg)) localStorage.setItem(mqKey(matchId), JSON.stringify(cfg));
     else localStorage.removeItem(mqKey(matchId));
   } catch (e) { /* ignore */ }
 }
@@ -279,21 +279,29 @@ function mqTextFor(matchId) {
 }
 function MqContent({ matchId, orient }) {
   const cfg = getMqCfg(matchId);
+  // tile uploaded image many times so the strip is always full (no blank gaps)
   if (cfg && cfg.img) {
-    const n = orient === 'v' ? 14 : 10;
+    const n = orient === 'v' ? 60 : 48;
     return <>{Array.from({ length: n }, (_, i) => (
       <img key={i} className="mq-img" src={cfg.img} alt="" style={{ width: 'auto', objectFit: 'contain', verticalAlign: 'middle', marginRight: 14 }} />
     ))}</>;
   }
-  const reps = orient === 'v' ? 12 : 8;
-  return <>{mqTextFor(matchId).repeat(reps)}</>;
+  // repeat the text unit a large fixed count so the track is always overfull,
+  // then the -50% scroll keystone always has content (no "TEST · TEST …" gaps)
+  const unit = mqTextFor(matchId);
+  const reps = orient === 'v' ? 80 : 60;
+  return <>{unit.repeat(reps)}</>;
 }
 function Marquee({ edge, matchId }) {
+  const cfg = getMqCfg(matchId);
+  const st = {};
+  if (cfg && cfg.color) st.color = cfg.color;
+  if (cfg && cfg.bg) st.background = cfg.bg;
   if (edge === 'top' || edge === 'bottom') {
-    return <div className={'marquee mq-' + edge}><span className="mq-track"><MqContent matchId={matchId} orient="h" /></span></div>;
+    return <div className={'marquee mq-' + edge} style={st}><span className="mq-track"><MqContent matchId={matchId} orient="h" /></span></div>;
   }
   return (
-    <div className={'marquee mq-' + edge}>
+    <div className={'marquee mq-' + edge} style={st}>
       <div className="mq-rot"><span className="mq-vtrack"><MqContent matchId={matchId} orient="v" /></span></div>
     </div>
   );
@@ -367,7 +375,7 @@ function Board({ children, phaseClass, matchId, onEdit }) {
 function BoardState({ big, lbl, attrs }) {
   return (
     <div className="board-state">
-      {big != null && <div className="bs-big bs-blend"><span {...(attrs || {})}>{big}</span></div>}
+      {big != null && <div className="bs-big" {...(attrs || {})}>{big}</div>}
       {lbl && <div className="bs-lbl bs-blend">{lbl}</div>}
     </div>
   );
@@ -682,7 +690,7 @@ function MatchPanel({ ctx, f, rerender }) {
       <div className="vote-zone zr" onClick={() => vote('RGT')} />
     </div>
   );
-  const stateNode = <BoardState big={<AnimatedNumber value={mc.up} suffix="S" />} />;
+  const stateNode = <BoardState big={<AnimatedNumber className="bs-blend" value={mc.up} suffix="S" />} />;
   const extra = reaction ? <div className="mc-reaction">{reaction}</div> : null;
   return (
     <div className="match-fade">
@@ -704,6 +712,8 @@ function SignboardEditor({ matchId, onClose }) {
   const cfg = getMqCfg(matchId) || {};
   const [text, setText] = useState(cfg.text || '');
   const [img, setImg] = useState(cfg.img || null);
+  const [color, setColor] = useState(cfg.color || '#5a5a5a');
+  const [bg, setBg] = useState(cfg.bg || '#070707');
   const onFile = (e) => {
     const file = e.target.files && e.target.files[0]; if (!file) return;
     const rd = new FileReader();
@@ -717,11 +727,21 @@ function SignboardEditor({ matchId, onClose }) {
         <div className="sb-pop-h">Edit signboards</div>
         <label className="sb-lbl">Marquee text</label>
         <textarea className="sb-text" rows="2" placeholder="Custom signboard text for this match…" value={text} onChange={(e) => setText(e.target.value)} />
+        <div className="sb-colors">
+          <div className="sb-col">
+            <label className="sb-lbl">Text color</label>
+            <input type="color" className="sb-color" value={color} onChange={(e) => setColor(e.target.value)} />
+          </div>
+          <div className="sb-col">
+            <label className="sb-lbl">Background</label>
+            <input type="color" className="sb-color" value={bg} onChange={(e) => setBg(e.target.value)} />
+          </div>
+        </div>
         <label className="sb-lbl">Upload image (tiled banner)</label>
         <input type="file" accept="image/*" className="sb-file" onChange={onFile} />
         <div className="sb-prev">{img && <img src={img} alt="preview" style={{ maxHeight: 40, maxWidth: '100%', objectFit: 'contain' }} />}</div>
         <div className="sb-row">
-          <button className="sb-btn sb-save" onClick={() => { setMqCfg(matchId, { text, img }); toast('Signboard updated for this match'); onClose(); }}>Save</button>
+          <button className="sb-btn sb-save" onClick={() => { setMqCfg(matchId, { text, img, color, bg }); toast('Signboard updated for this match'); onClose(); }}>Save</button>
           <button className="sb-btn sb-clear" onClick={() => { setMqCfg(matchId, null); toast('Signboard reset to default'); onClose(); }}>Clear / Reset</button>
         </div>
       </div>
@@ -809,33 +829,100 @@ function KeyStatsPane({ t, mId }) {
   );
 }
 
+/* Seeded PRNG (Mulberry32-ish) so flavor beats are STABLE across per-second ticks. */
+function seededRng(seed) {
+  let a = seed >>> 0;
+  return function () { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+
 function CommentaryPane({ f, t, mId }) {
   const v = Object.values(getVotesFor(mId)).sort((a, b) => a.voteTs - b.voteTs);
-  const mc = matchClock(f); const lines = [];
+  const mc = matchClock(f);
   const nameA = teamName(t.a), nameB = teamName(t.b);
-  let seed = 0; for (const c of f.id) seed += c.charCodeAt(0);
-  const flavor = ['A real end-to-end contest developing here.', 'The crowd is split and the tension is building.', 'You sense a goal coming.', 'Plenty of conviction in these votes.', 'A patient, probing spell of support.'];
+  let seed = 0; for (const c of f.id) seed = (seed * 31 + c.charCodeAt(0)) | 0;
+  seed = Math.abs(seed) || 1;
+  const rng = seededRng(seed);
+  const pick = (arr) => arr[Math.floor(rng() * arr.length) % arr.length];
+
+  // current match-minute (0..90) reached so far
+  const phaseMin = mc.phase === 'ft' ? 90 : (mc.phase === 'up' || mc.phase === 'KO') ? 0 : Math.min(90, mc.up || 0);
   const secOf = (x) => Math.min(90, Math.max(1, Math.round((x.voteTs - f.kickoff) / 1000) - KICKOFF_S));
+
+  // ── beat pools (Guardian-style flavor) ──
+  const possBeats = [
+    `${nameA} keep the ball, knocking it about with intent.`,
+    `${nameB} press high and force a turnover.`,
+    `A possession swing — ${nameB} now dictating the tempo.`,
+    `Patient build-up from ${nameA}, probing for an opening.`,
+    `End to end stuff now; neither side willing to sit back.`,
+    `${nameB} switch the play and stretch the pitch.`,
+  ];
+  const shotBeats = [
+    `A tester from distance — ${nameA} go close.`,
+    `${nameB} sting the keeper's palms with a low drive.`,
+    `Half-chance for ${nameA}, scrambled away.`,
+    `${nameB} force a smart save down to the right.`,
+    `Off target — ${nameA} drag it wide of the upright.`,
+    `Blocked! ${nameB} fizz one into a defender.`,
+  ];
+  const crowdBeats = [
+    `The crowd are up on their feet for that one.`,
+    `A roar around the ground as the tackles fly in.`,
+    `Nervy atmosphere here — every touch scrutinised.`,
+    `The neutrals are loving this open contest.`,
+  ];
+  const nearBeats = [
+    `Oh, so close! ${nameA} rattle the woodwork.`,
+    `A near-miss — ${nameB} flash one across the face of goal.`,
+    `Inches away! ${nameA} can't quite convert.`,
+  ];
+
+  const lines = [];
   lines.push({ m: 1, key: 'Kick-off', t: `Kick-off at the ${roundDisp(f)}. ${nameA} get us underway against ${nameB}.` });
+
+  // ── vote-driven goals / lead changes / own goals ──
   let L = 0, R = 0, lastLead = null;
+  const voteEvents = [];
   v.forEach((x) => {
     const el = secOf(x);
     if (x.side === 'LFT') L++; else R++;
     const lead = L > R ? 'L' : R > L ? 'R' : null;
-    const kind = shotKind(x.decisionMs || 10000);
-    if (lead && lead !== lastLead) { lastLead = lead; const team = lead === 'L' ? nameA : nameB; lines.push({ m: el, ev: true, key: 'Goal!', t: `${team} hit the front — a confident shot finds the corner. ${flavor[(seed + el) % flavor.length]}` }); }
-    else if ((x.changes || 0) >= 2) { lines.push({ m: el, key: 'Own goal', t: 'Disaster — a voter changes their mind once too often and turns it into an own goal.' }); }
-    else if (kind === 'on target') { lines.push({ m: el, key: 'On target', t: 'A tester forces a save — clear intent in that vote.' }); }
-    else if (kind === 'wide' || kind === 'desperate') { lines.push({ m: el, key: 'Miss', t: 'Dragged wide after a long look — the hesitation showed.' }); }
+    if (lead && lead !== lastLead) { lastLead = lead; const team = lead === 'L' ? nameA : nameB; voteEvents.push({ m: el, ev: true, key: 'Goal!', t: `${team} hit the front — a confident shot finds the corner.` }); }
+    else if ((x.changes || 0) >= 2) { voteEvents.push({ m: el, key: 'Own goal', t: 'Disaster — a voter changes their mind once too often and turns it into an own goal.' }); }
+    else if (shotKind(x.decisionMs || 10000) === 'on target') { voteEvents.push({ m: el, key: 'On target', t: `A decisive vote — ${(x.side === 'LFT' ? nameA : nameB)} force a save.` }); }
   });
-  if (mc.phase === 'HT') lines.push({ m: 45, key: 'Halftime', t: `Half-time. ${L >= R ? nameA : nameB} edge it on shots so far.` });
+  voteEvents.forEach((e) => lines.push(e));
+
+  // ── flavored beats on a ~5s cadence across the minutes played so far ──
+  const beatKinds = [
+    { key: 'Possession', pool: possBeats },
+    { key: 'Shot', pool: shotBeats },
+    { key: 'Off target', pool: shotBeats },
+    { key: 'Near miss', pool: nearBeats },
+    { key: 'Crowd', pool: crowdBeats },
+  ];
+  for (let m = 5; m <= Math.max(5, phaseMin); m += 5) {
+    if (m === 45) continue; // reserve for half-time
+    const bk = beatKinds[Math.floor(rng() * beatKinds.length) % beatKinds.length];
+    lines.push({ m, key: bk.key, t: pick(bk.pool) });
+  }
+
+  // ── half-time / full-time ──
+  if (phaseMin >= 45) lines.push({ m: 45, key: 'Half-time', t: `Half-time. ${L >= R ? nameA : nameB} edge it on shots so far.` });
   if (mc.phase === 'ft') { const w = winnerOf(f.id); lines.push({ m: 90, ev: true, key: 'Full time', t: `Full time. ${w ? teamName(w) : '—'} go through. A deserved result on the balance of the shots.` }); }
-  else lines.push({ m: (mc.phase === '2H' ? 60 : mc.phase === 'HT' ? 45 : 20), key: 'Live', t: flavor[seed % flavor.length] });
-  const sorted = lines.sort((a, b) => a.m - b.m);
+  else if (mc.phase === '1H' || mc.phase === '2H' || mc.phase === 'HT') {
+    lines.push({ m: Math.max(2, phaseMin), key: 'Live', t: pick(possBeats) });
+  }
+
+  // sort by minute, then de-dup identical consecutive texts
+  const sorted = lines.sort((a, b) => a.m - b.m || (a.ev ? -1 : 1));
+  const out = []; let prevTxt = null;
+  sorted.forEach((l) => { if (l.t !== prevTxt) { out.push(l); prevTxt = l.t; } });
+
   return (
     <div>
       <div className="cm">
-        {sorted.map((l, i) => (
+        {out.map((l, i) => (
           <div className="cm-row" key={i}>
             <div className="cm-min">{l.m}″</div>
             <div><div className={'cm-key' + (l.ev ? ' ev' : '')}>{l.key.toUpperCase()}</div><div className="cm-txt">{l.t}</div></div>
@@ -1162,10 +1249,7 @@ export function ViewBracket({ ctx }) {
               const t = fxTeams(f), st = status(f), win = winnerOf(f.id), pick = picks[f.id];
               return (
                 <div className={'fx' + (st === 'ft' ? ' fx-ft' : '')} key={f.id} onClick={() => {
-                  if (st === 'live') { location.hash = '#/'; return; }
-                  if (!t.a || !t.b) { flash('Matchup not set yet'); return; }
-                  if (!ctx.id) return requireCheckIn(ctx);
-                  openPredict(ctx, f, t, rerender);
+                  openMatchDetail(ctx, f, rerender);
                 }}>
                   <img src={t.a ? rosterImg(t.a) : '/assets/teams/OpepenWC-Teams-1.webp'} alt="" style={{ opacity: t.a ? 1 : 0.15 }} />
                   <span className={'nm' + (win === t.a ? ' win' : '')}>{t.a ? teamName(t.a) : 'TBD'}</span><span className="vs">v</span>
@@ -1184,6 +1268,67 @@ export function ViewBracket({ ctx }) {
     </>
   );
 }
+/* Bracket match-detail modal: artworks + nicknames, score/winner (FT) with the
+   winning side highlighted, kickoff date/time, round, and key match stats (when
+   there are votes). Predict-winner stays available for upcoming matches. */
+function openMatchDetail(ctx, f, rerender) {
+  const t = fxTeams(f);
+  if (!t.a || !t.b) { flash('Matchup not set yet'); return; }
+  const st = status(f);
+  const mId = fxMatchId(f);
+  const tl = tallyMatch(mId);
+  const win = winnerOf(f.id);
+  const lWin = st === 'ft' && win === t.a;
+  const rWin = st === 'ft' && win === t.b;
+  const s = matchStats(mId);
+  const hasVotes = s.total > 0;
+  const gd = Math.abs((s.goalsL || 0) - (s.goalsR || 0));
+  const statRows = [
+    ['Goals', `${s.goalsL} – ${s.goalsR}`],
+    ['Shots', `${s.L.shots} – ${s.R.shots}`],
+    ['Shots on target', `${s.L.ot} – ${s.R.ot}`],
+    ['Own goals', `${s.L.og} – ${s.R.og}`],
+    ['Goal difference', `+${gd}`],
+    ['Possession', `${s.possL}% / ${s.possR}%`],
+  ];
+  const goPredict = () => { closeModal(); if (!ctx.id) return requireCheckIn(ctx, () => openPredict(ctx, f, t, rerender)); openPredict(ctx, f, t, rerender); };
+  openModal(
+    <div className="modal md-modal" onClick={(e) => e.stopPropagation()}>
+      <button className="close" onClick={closeModal}>×</button>
+      <div className="md-round">{roundDisp(f)} · {st === 'ft' ? 'Full time' : st === 'live' ? 'Live now' : 'Upcoming'}</div>
+      <div className="md-teams">
+        <div className={'md-team' + (lWin ? ' md-win' : '')}>
+          <img src={rosterImg(t.a)} alt="" />
+          <div className="md-nm">{teamName(t.a)}</div>
+          {st !== 'up' && <div className="md-score">{tl.L}</div>}
+        </div>
+        <div className="md-vs">{st === 'up' ? 'v' : '–'}</div>
+        <div className={'md-team' + (rWin ? ' md-win' : '')}>
+          <img src={rosterImg(t.b)} alt="" />
+          <div className="md-nm">{teamName(t.b)}</div>
+          {st !== 'up' && <div className="md-score">{tl.R}</div>}
+        </div>
+      </div>
+      {st === 'ft' && win && <div className="md-result">{teamName(win)} go through</div>}
+      <div className="md-meta">
+        <span>{fmtDay(f.kickoff)} · {fmtTime(f.kickoff)}</span>
+      </div>
+      {hasVotes ? (
+        <div className="md-stats">
+          <div className="md-stats-h">Match stats</div>
+          {statRows.map(([k, val]) => (
+            <div className="md-stat-row" key={k}><span className="md-sk">{k}</span><span className="md-sv">{val}</span></div>
+          ))}
+        </div>
+      ) : (
+        <p className="note" style={{ textAlign: 'center', marginTop: 16 }}>No votes yet — stats appear once shots are taken.</p>
+      )}
+      {st === 'live' && <button className="b-primary" style={{ marginTop: 18 }} onClick={() => { closeModal(); location.hash = '#/'; }}>Watch live & vote →</button>}
+      {st === 'up' && <button className="b-primary" style={{ marginTop: 18 }} onClick={goPredict}>Predict the winner →</button>}
+    </div>
+  );
+}
+
 function openPredict(ctx, f, t, rerender) {
   const pick = getPicks()[f.id];
   const choose = (team) => { setPick(f.id, team); if (predictionCount() >= 8) earnOnce('postedPredictions', 200, 'Made predictions'); closeModal(); toast('Prediction saved'); rerender(); };

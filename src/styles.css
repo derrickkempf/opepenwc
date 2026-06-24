@@ -117,6 +117,24 @@
   .fx .st{font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:2px 7px;border:1px solid var(--line-strong);margin-left:8px;white-space:nowrap}
   .fx .st.live{color:var(--red);border-color:var(--red)}.fx .st.ft{color:var(--muted-dim)}.fx .st.up{color:var(--muted)}
   .fx .win{color:var(--green-bright)}
+  /* bracket match-detail modal */
+  .md-modal{max-width:460px}
+  .md-round{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);text-align:center;margin:2px 0 16px}
+  .md-teams{display:flex;align-items:flex-start;justify-content:center;gap:10px}
+  .md-team{flex:1;text-align:center;border:1px solid var(--line-strong);padding:12px 8px;background:#070707}
+  .md-team img{width:84px;height:84px;object-fit:cover;border:1px solid #1a1a1a;margin:0 auto}
+  .md-nm{font-family:var(--mono);font-size:11px;color:#ccc;margin-top:8px;line-height:1.3}
+  .md-score{font-size:34px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:6px;color:#fff}
+  .md-win{border-color:var(--green-bright);background:#0c1a12}
+  .md-win .md-nm,.md-win .md-score{color:var(--green-bright)}
+  .md-vs{align-self:center;font-family:var(--mono);font-size:20px;color:var(--muted-dim)}
+  .md-result{text-align:center;color:var(--green-bright);font-weight:700;font-size:15px;margin-top:14px}
+  .md-meta{text-align:center;font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--muted);margin-top:12px}
+  .md-stats{margin-top:18px;border-top:1px solid var(--line);padding-top:14px}
+  .md-stats-h{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted-dim);margin-bottom:10px}
+  .md-stat-row{display:flex;justify-content:space-between;gap:12px;font-family:var(--mono);font-size:12px;padding:5px 0;border-bottom:1px solid #141414}
+  .md-stat-row .md-sk{color:#bdb8ad}
+  .md-stat-row .md-sv{color:#fff;font-weight:600;font-variant-numeric:tabular-nums}
   .round-head{display:flex;align-items:baseline;justify-content:space-between;margin:26px 0 8px}
   .round-head h2{font-size:22px;font-weight:700;margin:0}
   .round-head .adv{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted-dim)}
@@ -437,6 +455,9 @@
   .sb-btn{flex:1;padding:9px;font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;border:1px solid var(--line-strong);background:#0b0b0b;color:var(--fg)}
   .sb-save{background:var(--green-bright);color:#000;border-color:var(--green-bright);font-weight:700}
   .sb-clear:hover{border-color:#555}
+  .sb-colors{display:flex;gap:14px;margin-top:4px}
+  .sb-col{flex:1}
+  .sb-color{width:100%;height:32px;padding:0;border:1px solid #2a2a2a;background:#070707;cursor:pointer}
 
   /* ===== PLAY AREA: 1600x800, inset exactly one cell inside the frame =====
      Sits ABOVE the marquee frame (z-index). Positioning context for images,
@@ -451,11 +472,11 @@
 
   /* FIELD MARKINGS overlay (field-2): spans x:-100..1700 => 1800 wide @ x:-100.
      left:-6.25% width:112.5% of the 1600-wide play area, full height. */
-  .field-svg{position:absolute;top:0;left:-6.25%;width:112.5%;height:100%;z-index:5;pointer-events:none;overflow:visible}
+  .field-svg{position:absolute;top:0;left:-6.25%;width:112.5%;height:100%;z-index:6;pointer-events:none;overflow:visible}
 
   /* SOLID BLACK GOAL BOXES: 1 cell wide x 2 cells tall, rows 3-4, sticking out
      one cell. left:-6.25% width:6.25% (=100px), top:37.5% height:25% (=200px). */
-  .goal-box{position:absolute;width:6.25%;height:25%;top:37.5%;background:#000;z-index:6;pointer-events:none}
+  .goal-box{position:absolute;width:6.25%;height:25%;top:37.5%;background:#000;z-index:5;pointer-events:none}
   .goal-box.l{left:-6.25%}
   .goal-box.r{right:-6.25%}
 
@@ -463,7 +484,8 @@
   .board-state{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;z-index:7;pointer-events:none}
   .board-state .bs-big{font-weight:700;font-size:clamp(44px,8vw,108px);line-height:.95;color:rgba(255,255,255,.16);letter-spacing:-.02em}
   /* blended overlay text: pure white + mix-blend difference so it reads over any artwork */
-  .board-state .bs-big.bs-blend,.board-state .bs-big.bs-blend span{color:#fff;mix-blend-mode:difference}
+  .board-state .bs-big.bs-blend,.board-state .bs-big.bs-blend span,
+  .board-state .bs-big .bs-blend,.board-state .bs-big > .bs-blend{color:#fff;mix-blend-mode:difference;background:none}
   .board-state .bs-lbl{font-family:var(--mono);font-size:clamp(13px,2.2vw,22px);letter-spacing:.18em;text-transform:uppercase;color:rgba(255,255,255,.28);margin-top:6px}
   .board-state .bs-lbl.bs-blend{color:#fff;mix-blend-mode:difference}
 
@@ -503,19 +525,19 @@
   .board-inner.ft-win .pitch-half{filter:grayscale(.4) brightness(.55)}
   /* winning artwork centered, ~6 cells wide (6/16 = 37.5% of play area), square */
   .ft-winwrap{position:absolute;inset:0;z-index:7;display:flex;align-items:center;justify-content:center;pointer-events:none}
-  .ft-winart{position:relative;width:37.5%;aspect-ratio:1;pointer-events:auto;box-shadow:0 18px 60px rgba(0,0,0,.55);outline:3px solid var(--green-bright);outline-offset:0}
+  .ft-winart{position:relative;width:50%;aspect-ratio:1;pointer-events:auto;box-shadow:0 18px 60px rgba(0,0,0,.55);outline:3px solid var(--green-bright);outline-offset:0}
   /* WINNER! label centered & blended over everything */
   .board-state.ft-winlabel{z-index:11}
   .board-state.ft-winlabel .bs-big{font-size:clamp(40px,7vw,96px)}
 
   /* one-shot pixel confetti burst (~2.6s, does not loop) */
-  .confetti{position:absolute;inset:0;z-index:12;overflow:hidden;pointer-events:none}
+  .confetti{position:fixed;inset:0;z-index:9999;overflow:hidden;pointer-events:none}
   .confetti-pc{position:absolute;top:-14px;display:block;opacity:0;animation-name:confetti-fall;animation-timing-function:cubic-bezier(.4,.05,.55,.95);animation-iteration-count:1;animation-fill-mode:forwards}
   @keyframes confetti-fall{
     0%{opacity:0;transform:translate(0,-14px) rotate(0deg)}
     8%{opacity:1}
     85%{opacity:1}
-    100%{opacity:0;transform:translate(var(--drift,0),105%) rotate(var(--spin,360deg))}
+    100%{opacity:0;transform:translate(var(--drift,0),110vh) rotate(var(--spin,360deg))}
   }
   @media (prefers-reduced-motion: reduce){
     .confetti-pc{animation:none;opacity:0}
@@ -545,6 +567,7 @@
   .sb-win{background:#22a447}
   .sb-win .sb-nm{color:#000}
   .sb-win .sb-score{color:#000}
+  .sb-sub{text-align:center;margin:14px auto 0;max-width:640px;color:var(--muted);font-size:14px;line-height:1.5}
   .wager-cta{display:block;max-width:420px;margin:18px auto 0;background:#fff;color:#000;border:none;padding:16px 24px;font-weight:600;font-size:15px;text-align:center}
   .wager-cta:hover{opacity:.9}
   .wager-note{text-align:center;font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;color:var(--muted-dim);margin:10px auto 0;max-width:520px;line-height:1.5}
@@ -581,8 +604,10 @@
   /* FT stats layer (hover reveal over winner artwork) */
   .ft-shot{position:relative;display:inline-block;overflow:hidden}
   .ft-shot.block{display:block}
-  .ft-statlayer{position:absolute;inset:0;background:rgba(15,90,52,.93);color:#f4f1ea;padding:14px 16px;display:flex;flex-direction:column;justify-content:center;gap:5px;opacity:0;transition:opacity .18s ease;pointer-events:none;font-family:var(--mono)}
+  .ft-statlayer{position:absolute;inset:0;background:rgba(15,90,52,.93);color:#f4f1ea;padding:14px 16px;display:flex;flex-direction:column;justify-content:center;gap:5px;opacity:0;transition:opacity .18s ease;pointer-events:none;font-family:var(--mono);z-index:20}
   .ft-shot:hover .ft-statlayer{opacity:1}
+  /* while hovering the winner artwork, dim the WINNER! word so the stats read clearly */
+  .ft-winwrap:hover ~ .ft-winlabel,.board-inner.ft-win:has(.ft-winart:hover) .ft-winlabel{opacity:0;transition:opacity .18s ease}
   .ft-statlayer .sl-title{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:#bfe6cf;margin-bottom:4px}
   .ft-statrow{display:flex;justify-content:space-between;gap:12px;font-size:11px;letter-spacing:.02em}
   .ft-statrow .sl-lab{color:#cfe9da;text-align:left}
