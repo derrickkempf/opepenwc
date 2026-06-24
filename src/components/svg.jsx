@@ -36,20 +36,30 @@ export function XLogo() {
   );
 }
 
-export function PitchSvg() {
+/* ===== FIELD MARKINGS (public/field-2.svg, inlined) =====
+   field-2 viewBox is 0 0 1491.5 663.44 — an 18×8 grid in its own units that
+   INCLUDES the goal boxes (~82.8 units = one logical cell on each side).
+   The inner 16 columns map onto the 1600×800 play area; the goal boxes stick
+   out exactly one 100px cell on each side. In the board CSS this overlay is
+   positioned at x:-100 spanning 1800×800 (i.e. left:-6.25%; width:112.5%).
+   Aspect 1491.5/663.44 ≈ 2.248 ≈ 1800/800 = 2.25 — close enough to align. */
+export function FieldSvg() {
   return (
-    <svg className="pitch-svg" viewBox="0 0 1216 541" preserveAspectRatio="none" aria-hidden="true">
-      <g fill="none" stroke="var(--pitch)" strokeWidth="1.5" strokeMiterlimit="10">
-        <rect x="68" y=".5" width="540" height="540" />
-        <rect x="608" y=".5" width="540" height="540" />
-        <circle cx="608" cy="270.5" r="135" />
-        <rect x="68" y="135.5" width="135" height="270" />
-        <rect x=".5" y="203" width="67.5" height="135" />
-        <rect x="1148" y="203" width="67.5" height="135" />
-        <rect x="1013" y="135.5" width="135" height="270" />
-        <path d="M203,203h0v135h0c37.28,0,67.5-30.22,67.5-67.5h0c0-37.28-30.22-67.5-67.5-67.5Z" />
-        <path d="M1013,338h0v-135h0c-37.28,0-67.5,30.22-67.5,67.5h0c0,37.28,30.22,67.5,67.5,67.5Z" />
+    <svg className="field-svg" viewBox="0 0 1491.5 663.44" preserveAspectRatio="none" aria-hidden="true">
+      <g fill="none" stroke="var(--pitch)" strokeWidth="2" strokeMiterlimit="10">
+        <polyline points="83.31 414.53 .5 414.53 .5 248.92 83.31 248.92" />
+        <polyline points="1408.19 248.92 1491 248.92 1491 414.53 1408.19 414.53" />
+        <rect x="83.31" y=".5" width="662.44" height="662.44" />
+        <rect x="745.75" y=".5" width="662.44" height="662.44" />
+        <circle cx="745.75" cy="331.72" r="165.61" />
+        <polyline points="83.31 166.11 248.92 166.11 248.92 497.33 83.31 497.33" />
+        <polyline points="1408.19 497.33 1242.58 497.33 1242.58 166.11 1408.19 166.11" />
+        <path d="M248.92,331.72v82.81h0c45.73,0,82.81-37.07,82.81-82.81h0c0-45.73-37.07-82.81-82.81-82.81h0" />
+        <path d="M1242.58,248.92h0c-45.73,0-82.81,37.07-82.81,82.81h0c0,45.73,37.07,82.81,82.81,82.81h0" />
       </g>
     </svg>
   );
 }
+
+/* Kept for backwards-compat (older callers); now aliases the new field. */
+export function PitchSvg() { return <FieldSvg />; }

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { XLogo, PitchSvg } from './components/svg.jsx';
+import { XLogo, FieldSvg, LogoSvg } from './components/svg.jsx';
+import AnimatedNumber from './components/AnimatedNumber.jsx';
 import {
   ROSTER_COUNT, ROUNDS, SCHEDULE, START_BASE, ADMIN_PASSCODE, COLORS, KICKOFF_S,
   rosterImg, teamName, groupLetter, championOdds,
@@ -69,6 +70,78 @@ const ROUND_DISP = { 'Qualifiers': 'Qualifying Round', 'Knockouts': 'Knockout Ro
 function roundDisp(f) { return ROUND_DISP[f.rn] || f.rn; }
 function fmtLongDate(ts) { return new Date(ts).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }); }
 
+/* ===== HOME / LANDING (root route #/) =====
+   Marketing landing on the black/gold/Geist theme. CTAs start the game via
+   ctx.login(). The live match lives at #/play. */
+export function ViewHome({ ctx }) {
+  const go = () => ctx.login();
+  const steps = [
+    ['Two artworks appear', 'Each match runs 90 seconds. Two 45-second halves with a 30 second halftime. You vote for the one you prefer.'],
+    ['Speed shapes the shot', 'An instant choice lands center goal; a slow choice drifts wide, or misses completely. Changing your mind could cause an own goal.'],
+    ['The strongest instinct wins', 'The artwork that earns the fastest, most confident votes accumulates the most goals and advances. Only one will become a 1/1.'],
+  ];
+  return (
+    <div className="home-landing">
+      {/* HERO */}
+      <section className="hl-hero">
+        <h1 className="hl-h1">Your Gut Vote Counts More Than Your Considered One</h1>
+        <p className="hl-sub">40 artworks enter. One lifts the Cup. How fast you decide shapes how much your vote counts.</p>
+      </section>
+
+      {/* FIELD GRAPHIC + KICKOFF */}
+      <section className="hl-field-sec">
+        <div className="hl-field"><FieldSvg /></div>
+        <div className="hl-kickoff">The Art World Cup Begins</div>
+        <div className="hl-date">July 1st @ 7:00 PM UTC</div>
+        <button className="hl-cta-green" onClick={go}>Sign Up to Play</button>
+      </section>
+
+      {/* INSTINCT VS POPULARITY */}
+      <section className="hl-block">
+        <h2 className="hl-h2">Most art competitions reward popularity. This one rewards instinct.</h2>
+        <p className="hl-sub">Hesitation isn't neutrality … it's a miss. Your first reaction is your real opinion.</p>
+      </section>
+
+      {/* HOW IT WORKS */}
+      <section className="hl-block">
+        <h2 className="hl-h2">How It Works …</h2>
+        <ol className="hl-steps">
+          {steps.map(([h, b], i) => (
+            <li className="hl-step" key={i}>
+              <span className="hl-step-n">{i + 1}</span>
+              <div><div className="hl-step-h">{h}</div><div className="hl-step-b">{b}</div></div>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      {/* GREEN BAND */}
+      <section className="hl-green-band">
+        <h2 className="hl-band-h">Instinct Is Honest. Deliberation Is a Story You Tell Yourself.</h2>
+        <button className="hl-cta-dark" onClick={go}>Sign Up to Play</button>
+      </section>
+
+      {/* CLOSING — 40 artworks grid with trophy in the middle */}
+      <section className="hl-block">
+        <h2 className="hl-h2">The Art World Cup</h2>
+        <p className="hl-sub">40 artworks enter. One artwork lifts the Cup.</p>
+        <div className="hl-roster">
+          {Array.from({ length: ROSTER_COUNT }, (_, i) => {
+            const id = i + 1;
+            return (
+              <React.Fragment key={id}>
+                {/* drop the trophy logo into the middle of the grid */}
+                {i === 18 ? <div className="hl-trophy"><LogoSvg /></div> : null}
+                <div className="hl-tile"><img src={rosterImg(id)} alt={teamName(id)} loading="lazy" /></div>
+              </React.Fragment>
+            );
+          })}
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export function ViewPlay({ ctx, loginOnMount }) {
   const [, force] = useState(0);
   const rerender = useCallback(() => force((n) => n + 1), []);
@@ -121,7 +194,7 @@ function MqContent({ matchId, orient }) {
   if (cfg && cfg.img) {
     const n = orient === 'v' ? 14 : 10;
     return <>{Array.from({ length: n }, (_, i) => (
-      <img key={i} className="mq-img" src={cfg.img} alt="" style={{ height: 22, width: 'auto', objectFit: 'contain', display: 'inline-block', verticalAlign: 'top', marginRight: 14 }} />
+      <img key={i} className="mq-img" src={cfg.img} alt="" style={{ width: 'auto', objectFit: 'contain', verticalAlign: 'middle', marginRight: 14 }} />
     ))}</>;
   }
   const reps = orient === 'v' ? 12 : 8;
@@ -154,22 +227,26 @@ function ShotOverlay({ side, seed }) {
   );
 }
 
-/* the field: two team artworks (each half IS the square art box) + pitch markings,
-   optional vote zones, center state, voted shot overlay, FT flanks/extras. */
+/* the field on the strict grid: LEFT art cols 0-7 (0-50%), RIGHT art cols 8-15
+   (50-100%); field-2 markings overlay (-100..1700); solid black goal boxes
+   (1 cell x 2 cells, rows 3-4) sticking out one cell each side; vote zones over
+   the two image rects only; center state; voted shot overlay; FT extras. */
 function PitchField({ aId, bId, zones, state, extra, votedSide, votedSeed }) {
   return (
     <div className="pitch-wrap mc-pitch arena">
-      <div className="pitch-imgs" style={{ left: '5.59%', right: '5.59%' }}>
-        <div className="pitch-half half hl" style={{ flex: 1, backgroundImage: aId ? `url('${rosterImg(aId)}')` : 'none' }}>
+      <div className="pitch-imgs">
+        <div className="pitch-half half hl" style={{ backgroundImage: aId ? `url('${rosterImg(aId)}')` : 'none' }}>
           {aId && <div className="shot-hover"><div className="shot-cell" /></div>}
           {votedSide === 'l' && <ShotOverlay side="l" seed={votedSeed} />}
         </div>
-        <div className="pitch-half half hr" style={{ flex: 1, backgroundImage: bId ? `url('${rosterImg(bId)}')` : 'none' }}>
+        <div className="pitch-half half hr" style={{ backgroundImage: bId ? `url('${rosterImg(bId)}')` : 'none' }}>
           {bId && <div className="shot-hover"><div className="shot-cell" /></div>}
           {votedSide === 'r' && <ShotOverlay side="r" seed={votedSeed} />}
         </div>
       </div>
-      <PitchSvg />
+      <FieldSvg />
+      <div className="goal-box l" />
+      <div className="goal-box r" />
       {zones}
       {state}
       {extra}
@@ -177,15 +254,18 @@ function PitchField({ aId, bId, zones, state, extra, votedSide, votedSeed }) {
   );
 }
 
-/* board = pitch framed by the 4-edge marquee + signboard edit button */
+/* board = one-cell marquee FRAME (z below) + the 1600x800 play area (z above)
+   + signboard edit button. The play area sits inside the marquee frame. */
 function Board({ children, phaseClass, matchId, onEdit }) {
   return (
     <div className="board">
-      <div className={'board-inner' + (phaseClass ? ' ' + phaseClass : '')}>
-        <Marquee edge="top" matchId={matchId} />
-        <Marquee edge="bottom" matchId={matchId} />
-        <Marquee edge="left" matchId={matchId} />
-        <Marquee edge="right" matchId={matchId} />
+      {/* marquee frame — rendered BELOW the play area (lower z-index) */}
+      <Marquee edge="top" matchId={matchId} />
+      <Marquee edge="bottom" matchId={matchId} />
+      <Marquee edge="left" matchId={matchId} />
+      <Marquee edge="right" matchId={matchId} />
+      {/* play area (1600x800) — team images + field + goal boxes live here */}
+      <div className={'board-inner play-area' + (phaseClass ? ' ' + phaseClass : '')}>
         {children}
       </div>
       {matchId && (
@@ -211,12 +291,12 @@ function Scoreboard({ t, tl, finished, winner }) {
     <div className="scoreboard">
       <div className={'sb-cell l' + (lWin ? ' sb-win' : '')}>
         <div className="sb-nm">{teamName(t.a)}</div>
-        <div className="sb-score">{tl.L}</div>
+        <div className="sb-score"><AnimatedNumber value={tl.L} /></div>
       </div>
       <div className="sb-mid"><span className="sb-vs">–</span></div>
       <div className={'sb-cell r' + (rWin ? ' sb-win' : '')}>
         <div className="sb-nm">{teamName(t.b)}</div>
-        <div className="sb-score">{tl.R}</div>
+        <div className="sb-score"><AnimatedNumber value={tl.R} /></div>
       </div>
     </div>
   );
@@ -411,7 +491,7 @@ function MatchPanel({ ctx, f, rerender }) {
   /* ---- KICKOFF / UPCOMING ---- */
   if (phase === 'up' || phase === 'KO') {
     const num = phase === 'KO' ? mc.remain : Math.max(0, Math.ceil((f.kickoff - Date.now()) / 1000));
-    const koState = <div className="board-state"><div className="bs-lbl">KICKOFF IN {num}S</div></div>;
+    const koState = <div className="board-state"><div className="bs-lbl">KICKOFF IN <AnimatedNumber value={num} suffix="S" /></div></div>;
     return (
       <div className="match-fade">
         {TitleRow}{StatusRow}
@@ -431,7 +511,7 @@ function MatchPanel({ ctx, f, rerender }) {
     const htState = (
       <div className="board-state">
         <div className="bs-big"><span>HALFTIME</span></div>
-        <div className="bs-lbl">{mc.remain}S</div>
+        <div className="bs-lbl"><AnimatedNumber value={mc.remain} suffix="S" /></div>
       </div>
     );
     return (
@@ -483,7 +563,7 @@ function MatchPanel({ ctx, f, rerender }) {
       <div className="vote-zone zr" onClick={() => vote('RGT')} />
     </div>
   );
-  const stateNode = <BoardState big={mc.remain + 'S'} />;
+  const stateNode = <BoardState big={<AnimatedNumber value={mc.remain} suffix="S" />} />;
   const extra = reaction ? <div className="mc-reaction">{reaction}</div> : null;
   return (
     <div className="match-fade">
@@ -1055,7 +1135,7 @@ export function ViewEarn({ ctx }) {
       <p className="page-sub">Vote · Predict · Earn · Compete</p>
       <div className="panel" style={{ textAlign: 'center' }}>
         <div className="pl">Your balance</div>
-        <div style={{ fontSize: 46, fontWeight: 700, color: 'var(--gold)' }}>{nFmt(t.bal)}<span style={{ fontSize: 16, color: 'var(--muted)' }}> TP</span></div>
+        <div style={{ fontSize: 46, fontWeight: 700, color: 'var(--gold)' }}><AnimatedNumber value={t.bal} /><span style={{ fontSize: 16, color: 'var(--muted)' }}> TP</span></div>
       </div>
       <div className="panel">
         <div className="pl">Share &amp; earn</div>
