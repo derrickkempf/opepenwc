@@ -48,6 +48,7 @@
   main{max-width:var(--maxw);margin:0 auto;padding:8px 28px 90px}
   /* On the Play (match) route the board + scoreboard read edge-to-edge */
   .route-play main{max-width:none;padding:8px 0 90px}
+  .route-home main{max-width:none;padding:8px 0 60px}
   .page-title{text-align:center;font-weight:700;font-size:50px;line-height:1.02;letter-spacing:-.02em;margin:28px 0 10px}
   .page-sub{text-align:center;font-family:var(--mono);font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin:0 0 24px}
   .edition{text-align:center;font-family:var(--mono);font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted-dim);margin:30px 0 2px}
@@ -628,24 +629,24 @@
      =========================================================== */
   .home-landing{width:min(80vw,1560px);max-width:none;margin:0 auto;padding:0 24px 40px;text-align:center}
   .home-landing section{margin:0 auto}
-  .hl-hero{padding:48px 0 8px}
-  .hl-h1{font-weight:700;font-size:clamp(34px,6vw,64px);line-height:1.04;letter-spacing:-.02em;margin:0 auto;max-width:14ch;color:var(--fg)}
+  .hl-hero{padding:72px 0 16px}
+  .hl-h1{font-weight:700;font-size:clamp(34px,6vw,64px);line-height:1.04;letter-spacing:-.02em;margin:0 auto;max-width:20ch;color:var(--fg)}
   .hl-sub{font-weight:600;font-size:clamp(15px,2vw,20px);line-height:1.5;color:var(--muted);max-width:46ch;margin:18px auto 0}
-  .hl-field-sec{padding:36px 0 8px}
+  .hl-field-sec{padding:72px 0 16px}
   .hl-field{position:relative;width:min(560px,90%);aspect-ratio:1491.5/663.44;margin:0 auto 26px;border:1px solid var(--line)}
   .hl-field .field-svg{position:absolute;inset:0;width:100%;height:100%;left:0}
   .hl-kickoff{font-weight:700;font-size:clamp(22px,3.4vw,34px);color:var(--gold);letter-spacing:-.01em}
   .hl-date{font-weight:700;font-size:clamp(20px,3vw,30px);color:var(--gold);margin-top:2px}
   .hl-cta-green{display:inline-block;margin-top:22px;background:#22a447;color:#03210f;border:none;padding:15px 34px;font-weight:700;font-size:16px;letter-spacing:.01em;transition:filter .15s}
   .hl-cta-green:hover{filter:brightness(1.08)}
-  .hl-block{padding:44px 0}
+  .hl-block{padding:80px 0}
   .hl-h2{font-weight:700;font-size:clamp(24px,3.4vw,38px);line-height:1.12;letter-spacing:-.015em;max-width:20ch;margin:0 auto;color:var(--fg)}
   .hl-steps{list-style:none;counter-reset:none;margin:28px auto 0;padding:0;max-width:560px;text-align:left;display:flex;flex-direction:column;gap:22px}
   .hl-step{display:flex;gap:18px;align-items:flex-start}
   .hl-step-n{flex:none;width:42px;height:42px;border-radius:50%;border:1px solid var(--gold);color:var(--gold);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px}
   .hl-step-h{font-weight:700;font-size:18px;color:var(--fg);margin-bottom:4px}
   .hl-step-b{font-weight:600;font-size:15px;line-height:1.5;color:var(--muted)}
-  .hl-green-band{background:#22a447;border-radius:0;padding:48px 24px;margin:24px auto 0;max-width:100%}
+  .hl-green-band{background:#22a447;border-radius:0;padding:72px 24px;margin:56px auto 0;max-width:100%}
   .hl-band-h{font-weight:800;font-size:clamp(24px,3.6vw,40px);line-height:1.1;letter-spacing:-.02em;color:#03210f;max-width:22ch;margin:0 auto}
   .hl-cta-dark{display:inline-block;margin-top:26px;background:#000;color:#fff;border:none;padding:15px 34px;font-weight:700;font-size:16px;transition:opacity .15s}
   .hl-cta-dark:hover{opacity:.85}

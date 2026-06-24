@@ -84,6 +84,7 @@ export default function App() {
 
   const r = route || '#/';
   const isPlay = r.startsWith('#/play') || r.startsWith('#/login') || r.startsWith('#/critique');
+  const isHome = (r === '#/' || r === '');
 
   let view;
   if (r === '#/' || r === '') view = <ViewHome ctx={ctx} />;
@@ -104,7 +105,7 @@ export default function App() {
   else view = <ViewPlay ctx={ctx} />;
 
   return (
-    <div className={isPlay ? 'route-play' : ''}>
+    <div className={isPlay ? 'route-play' : (isHome ? 'route-home' : '')}>
       <header>
         <div className="hdr-wordmark">2026 Opepen<br />Art World Cup</div>
         <a className="hdr-logo" href="#/" title="Opepen World Cup"><LogoSvg /></a>

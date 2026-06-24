@@ -250,8 +250,8 @@ export function ViewHome({ ctx }) {
     <div className="home-landing">
       {/* HERO */}
       <FadeSection className="hl-hero">
-        <h1 className="hl-h1">Your Gut Vote Counts More Than Your Considered One</h1>
-        <p className="hl-sub">40 artworks enter. One lifts the Cup. How fast you decide shapes how much your vote counts.</p>
+        <h1 className="hl-h1">2026 Opepen Art World Cup</h1>
+        <p className="hl-sub">A knockout tournament for 40 artworks where instinct is the scoring system.</p>
       </FadeSection>
 
       {/* CURRENT + NEXT MATCH (item 8) */}
@@ -270,7 +270,7 @@ export function ViewHome({ ctx }) {
 
       {/* INSTINCT VS POPULARITY */}
       <FadeSection className="hl-block">
-        <h2 className="hl-h2">Most art competitions reward popularity. This one rewards instinct.</h2>
+        <h2 className="hl-h2">Popularity polls reward patience. This rewards speed.</h2>
         <p className="hl-sub">Hesitation isn't neutrality … it's a miss. Your first reaction is your real opinion.</p>
       </FadeSection>
 
@@ -282,7 +282,7 @@ export function ViewHome({ ctx }) {
 
       {/* GREEN BAND */}
       <FadeSection className="hl-green-band">
-        <h2 className="hl-band-h">Instinct Is Honest. Deliberation Is a Story You Tell Yourself.</h2>
+        <h2 className="hl-band-h">Instinct is honest. Deliberation is a story you tell yourself.</h2>
         <button className="hl-cta-dark" onClick={go}>Sign Up to Play</button>
       </FadeSection>
 
