@@ -169,8 +169,64 @@ function HowItWorks({ steps }) {
   );
 }
 
+/* ITEM 8: Home current/next match section — compact cards for the live/most-recent
+   match (currentFixture/liveFixture) and the next upcoming match (nextFixture).
+   Shows team artworks + nicknames, LIVE/kickoff status, and the live score
+   (AnimatedNumber). Each card links to #/play (renders currentFixture). */
+function HomeMatchCard({ f, kind }) {
+  if (!f) return null;
+  const t = fxTeams(f);
+  const st = status(f);
+  const mc = matchClock(f);
+  const tl = tallyMatch(fxMatchId(f));
+  const live = st === 'live';
+  const ft = st === 'ft';
+  const labelKind = kind === 'next' ? 'Next match' : live ? 'Live now' : ft ? 'Latest result' : 'Up next';
+  let statusNode;
+  if (live) statusNode = <span className="hm-live"><span className="live-dot" /> LIVE · {mc.txt}</span>;
+  else if (ft) statusNode = <span className="hm-st-ft">FT</span>;
+  else statusNode = <span className="hm-st-up">{fmtDay(f.kickoff)} · {fmtTime(f.kickoff)}</span>;
+  return (
+    <a className="hm-card" href="#/play">
+      <div className="hm-kind">{labelKind} · {roundDisp(f)}</div>
+      <div className="hm-teams">
+        <div className="hm-team">
+          <img src={t.a ? rosterImg(t.a) : '/assets/teams/OpepenWC-Teams-1.webp'} alt="" style={{ opacity: t.a ? 1 : 0.2 }} />
+          <span className="hm-nm">{t.a ? teamName(t.a) : 'TBD'}</span>
+        </div>
+        <div className="hm-mid">
+          {(live || ft)
+            ? <span className="hm-score"><AnimatedNumber value={tl.L} /><span className="hm-dash">–</span><AnimatedNumber value={tl.R} /></span>
+            : <span className="hm-vs">v</span>}
+        </div>
+        <div className="hm-team r">
+          <img src={t.b ? rosterImg(t.b) : '/assets/teams/OpepenWC-Teams-1.webp'} alt="" style={{ opacity: t.b ? 1 : 0.2 }} />
+          <span className="hm-nm">{t.b ? teamName(t.b) : 'TBD'}</span>
+        </div>
+      </div>
+      <div className="hm-foot">{statusNode}<span className="hm-go">Watch →</span></div>
+    </a>
+  );
+}
+function HomeMatches() {
+  const [, force] = useState(0);
+  useEffect(() => { const iv = setInterval(() => force((n) => n + 1), 1000); return () => clearInterval(iv); }, []);
+  const cur = currentFixture();
+  const nxt = nextFixture();
+  const showNext = nxt && (!cur || nxt.id !== cur.id);
+  if (!cur && !showNext) return null;
+  return (
+    <div className="hm-wrap">
+      <HomeMatchCard f={cur} kind="current" />
+      {showNext && <HomeMatchCard f={nxt} kind="next" />}
+    </div>
+  );
+}
+
 export function ViewHome({ ctx }) {
-  const go = () => ctx.login();
+  // Every CTA routes to the live/latest match (#/play renders currentFixture).
+  // Fire lazy login too, but always end up on the current match.
+  const go = () => { ctx.login(); location.hash = '#/play'; };
   const steps = [
     ['Two artworks appear', 'Each match runs 90 seconds. Two 45-second halves with a 30 second halftime. You vote for the one you prefer.'],
     ['Speed shapes the shot', 'An instant choice lands center goal; a slow choice drifts wide, or misses completely. Changing your mind could cause an own goal.'],
@@ -182,6 +238,12 @@ export function ViewHome({ ctx }) {
       <FadeSection className="hl-hero">
         <h1 className="hl-h1">Your Gut Vote Counts More Than Your Considered One</h1>
         <p className="hl-sub">40 artworks enter. One lifts the Cup. How fast you decide shapes how much your vote counts.</p>
+      </FadeSection>
+
+      {/* CURRENT + NEXT MATCH (item 8) */}
+      <FadeSection className="hl-block hl-matches">
+        <h2 className="hl-h2">The match is live</h2>
+        <HomeMatches />
       </FadeSection>
 
       {/* FIELD GRAPHIC + KICKOFF */}
@@ -616,7 +678,12 @@ function MatchPanel({ ctx, f, rerender }) {
   /* ---- KICKOFF / UPCOMING ---- */
   if (phase === 'up' || phase === 'KO') {
     const num = phase === 'KO' ? mc.remain : Math.max(0, Math.ceil((f.kickoff - Date.now()) / 1000));
-    const koState = <div className="board-state"><div className="bs-lbl bs-blend">KICKOFF IN <AnimatedNumber value={num} suffix="S" /></div></div>;
+    const koState = (
+      <div className="board-state">
+        <div className="bs-big bs-blend"><span>KICKOFF IN</span></div>
+        <div className="bs-lbl bs-blend"><AnimatedNumber value={num} suffix="S" /></div>
+      </div>
+    );
     return (
       <div className="match-fade">
         {TitleRow}{StatusRow}
@@ -918,11 +985,14 @@ function CommentaryPane({ f, t, mId }) {
   const sorted = lines.sort((a, b) => a.m - b.m || (a.ev ? -1 : 1));
   const out = []; let prevTxt = null;
   sorted.forEach((l) => { if (l.t !== prevTxt) { out.push(l); prevTxt = l.t; } });
+  // ITEM 4: latest on top — display newest-first (descending by minute). Kick-off
+  // ends at the bottom, full-time at the top as the match progresses.
+  const display = out.slice().reverse();
 
   return (
     <div>
       <div className="cm">
-        {out.map((l, i) => (
+        {display.map((l, i) => (
           <div className="cm-row" key={i}>
             <div className="cm-min">{l.m}″</div>
             <div><div className={'cm-key' + (l.ev ? ' ev' : '')}>{l.key.toUpperCase()}</div><div className="cm-txt">{l.t}</div></div>
@@ -1006,6 +1076,8 @@ function MatchTabs({ ctx, f, t, mId, activeTab, setActiveTab }) {
 
 /* ── Social / results / leaderboard strip (full width, below split) ── */
 function SocialStrip({ ctx }) {
+  const [, force] = useState(0);
+  const rerender = () => force((n) => n + 1);
   const fts = SCHEDULE.filter((f) => status(f) === 'ft').slice(-8).reverse();
   const players = allPlayers();
   return (
@@ -1015,12 +1087,11 @@ function SocialStrip({ ctx }) {
         {fts.length ? fts.map((f) => {
           const tt = fxTeams(f), w = winnerOf(f.id);
           return (
-            <div className="fx fx-ft" key={f.id} onClick={() => { location.hash = '#/bracket'; }}>
+            <div className="fx fx-ft" key={f.id} onClick={() => openMatchDetail(ctx, f, rerender)}>
               <img src={rosterImg(tt.a)} alt="" /><span className={'nm' + (w === tt.a ? ' win' : '')}>{tt.a ? teamName(tt.a) : 'TBD'}</span>
               <span className="vs">v</span>
               <img src={rosterImg(tt.b)} alt="" /><span className={'nm' + (w === tt.b ? ' win' : '')}>{tt.b ? teamName(tt.b) : 'TBD'}</span>
               <span className="time">{f.rn}</span><span className="st ft">FT</span>
-              <StatsOverlay mId={fxMatchId(f)} t={tt} w={w} />
             </div>
           );
         }) : <div className="note">No matches finished yet.</div>}
@@ -1258,7 +1329,6 @@ export function ViewBracket({ ctx }) {
                   <span className="time">{fmtDay(f.kickoff)}<br />{fmtTime(f.kickoff)}</span>
                   <span className={'st ' + st}>{st === 'live' ? 'LIVE' : st === 'ft' ? 'FT' : '·'}</span>
                   {pick && <span className="st" style={{ borderColor: 'var(--gold)', color: 'var(--gold)' }}>★{pick === t.a ? 'L' : 'R'}</span>}
-                  {st === 'ft' && <StatsOverlay mId={fxMatchId(f)} t={t} w={win} />}
                 </div>
               );
             })}
@@ -1283,11 +1353,13 @@ function openMatchDetail(ctx, f, rerender) {
   const s = matchStats(mId);
   const hasVotes = s.total > 0;
   const gd = Math.abs((s.goalsL || 0) - (s.goalsR || 0));
+  const avg = Math.round((((s.dtL || 0) + (s.dtR || 0)) / 2) * 10) / 10;
   const statRows = [
     ['Goals', `${s.goalsL} – ${s.goalsR}`],
     ['Shots', `${s.L.shots} – ${s.R.shots}`],
     ['Shots on target', `${s.L.ot} – ${s.R.ot}`],
     ['Own goals', `${s.L.og} – ${s.R.og}`],
+    ['Avg decision', `${avg}s`],
     ['Goal difference', `+${gd}`],
     ['Possession', `${s.possL}% / ${s.possR}%`],
   ];
@@ -1313,17 +1385,14 @@ function openMatchDetail(ctx, f, rerender) {
       <div className="md-meta">
         <span>{fmtDay(f.kickoff)} · {fmtTime(f.kickoff)}</span>
       </div>
-      {hasVotes ? (
-        <div className="md-stats">
-          <div className="md-stats-h">Match stats</div>
-          {statRows.map(([k, val]) => (
-            <div className="md-stat-row" key={k}><span className="md-sk">{k}</span><span className="md-sv">{val}</span></div>
-          ))}
-        </div>
-      ) : (
-        <p className="note" style={{ textAlign: 'center', marginTop: 16 }}>No votes yet — stats appear once shots are taken.</p>
-      )}
-      {st === 'live' && <button className="b-primary" style={{ marginTop: 18 }} onClick={() => { closeModal(); location.hash = '#/'; }}>Watch live & vote →</button>}
+      <div className="md-stats">
+        <div className="md-stats-h">Match stats</div>
+        {statRows.map(([k, val]) => (
+          <div className="md-stat-row" key={k}><span className="md-sk">{k}</span><span className="md-sv">{val}</span></div>
+        ))}
+        {!hasVotes && <p className="note" style={{ textAlign: 'center', marginTop: 10 }}>No shots taken yet.</p>}
+      </div>
+      {st === 'live' && <button className="b-primary" style={{ marginTop: 18 }} onClick={() => { closeModal(); location.hash = '#/play'; }}>Watch live & vote →</button>}
       {st === 'up' && <button className="b-primary" style={{ marginTop: 18 }} onClick={goPredict}>Predict the winner →</button>}
     </div>
   );

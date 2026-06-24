@@ -423,8 +423,8 @@
   /* left/right: full board height (1000), one cell (100px=5.5556%) wide */
   .mq-left{left:0;top:0;bottom:0;width:5.5556%}
   .mq-right{right:0;top:0;bottom:0;width:5.5556%}
-  .mq-top .mq-track{animation:mqL 55s linear infinite}
-  .mq-bottom .mq-track{animation:mqR 55s linear infinite}
+  .mq-top .mq-track{animation:mqL 420s linear infinite}
+  .mq-bottom .mq-track{animation:mqR 420s linear infinite}
   /* vertical strips: a rotated track sized in container-query units of .board.
      The rot box is board-HEIGHT long (100cqh) and one-cell wide (10cqh = 100px),
      then rotated 90deg so its length runs vertically and translateX scrolls it. */
@@ -432,8 +432,8 @@
   .mq-left .mq-rot{left:0;top:100%;transform-origin:left top;transform:rotate(-90deg)}
   .mq-right .mq-rot{right:0;top:0;transform-origin:right top;transform:rotate(90deg)}
   .mq-left .mq-vtrack,.mq-right .mq-vtrack{display:inline-block;white-space:nowrap;will-change:transform;line-height:10cqh;flex:none}
-  .mq-left .mq-vtrack{animation:mqVUp 55s linear infinite}
-  .mq-right .mq-vtrack{animation:mqVDown 55s linear infinite}
+  .mq-left .mq-vtrack{animation:mqVUp 420s linear infinite}
+  .mq-right .mq-vtrack{animation:mqVDown 420s linear infinite}
   @keyframes mqL{from{transform:translateX(0)}to{transform:translateX(-50%)}}
   @keyframes mqR{from{transform:translateX(-50%)}to{transform:translateX(0)}}
   @keyframes mqVUp{from{transform:translateX(0)}to{transform:translateX(-50%)}}
@@ -467,21 +467,26 @@
 
   /* the two team artworks: LEFT cols 0-7 (0-50%), RIGHT cols 8-15 (50-100%).
      Each is 800x800 (8x8 cells); each art pixel = one 100px grid cell. */
-  .pitch-imgs{position:absolute;inset:0;display:flex;overflow:hidden;z-index:3}
+  .pitch-imgs{position:absolute;inset:0;display:flex;overflow:hidden}
   .pitch-half{position:relative;width:50%;height:100%;background-size:cover;background-position:center;background-repeat:no-repeat;transition:opacity .18s ease}
 
   /* FIELD MARKINGS overlay (field-2): spans x:-100..1700 => 1800 wide @ x:-100.
      left:-6.25% width:112.5% of the 1600-wide play area, full height. */
-  .field-svg{position:absolute;top:0;left:-6.25%;width:112.5%;height:100%;z-index:6;pointer-events:none;overflow:visible}
+  .field-svg{position:absolute;top:0;left:-6.25%;width:112.5%;height:100%;pointer-events:none;overflow:visible}
 
   /* SOLID BLACK GOAL BOXES: 1 cell wide x 2 cells tall, rows 3-4, sticking out
      one cell. left:-6.25% width:6.25% (=100px), top:37.5% height:25% (=200px). */
-  .goal-box{position:absolute;width:6.25%;height:25%;top:37.5%;background:#000;z-index:5;pointer-events:none}
+  .goal-box{position:absolute;width:6.25%;height:25%;top:37.5%;background:#000;pointer-events:none}
   .goal-box.l{left:-6.25%}
   .goal-box.r{right:-6.25%}
 
   /* center state text overlay */
-  .board-state{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;z-index:7;pointer-events:none}
+  /* IMPORTANT: no z-index/transform/opacity/filter here — the overlay must NOT form
+     its own stacking context, so mix-blend-mode:difference on .bs-blend text can
+     composite against the team artwork that paints beneath it in the .board
+     (isolation:isolate) context. It paints on top purely via DOM order (rendered
+     after the images in PitchField). */
+  .board-state{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;pointer-events:none}
   .board-state .bs-big{font-weight:700;font-size:clamp(44px,8vw,108px);line-height:.95;color:rgba(255,255,255,.16);letter-spacing:-.02em}
   /* blended overlay text: pure white + mix-blend difference so it reads over any artwork */
   .board-state .bs-big.bs-blend,.board-state .bs-big.bs-blend span,
@@ -491,7 +496,7 @@
 
   /* phase states (text-only per-second updates; no DOM rebuild) */
   .board-inner.ko .pitch-half{filter:none}
-  .board-inner.ko::after{content:"";position:absolute;inset:0;background:rgba(19,160,90,.34);z-index:4;pointer-events:none}
+  .board-inner.ko .pitch-imgs::after{content:"";position:absolute;inset:0;background:rgba(19,160,90,.34);pointer-events:none;z-index:5}
   .board-inner.ht .pitch-half{filter:grayscale(1) brightness(.7)}
 
   /* VOTE ZONES — ONLY the two team-image rectangles are clickable. */
@@ -521,13 +526,12 @@
 
   /* ===== FT WINNER SCREEN: centered artwork + green field + pixel confetti ===== */
   /* green-tinted field behind the winner */
-  .board-inner.ft-win::after{content:"";position:absolute;inset:0;background:rgba(19,160,90,.42);z-index:4;pointer-events:none}
+  .board-inner.ft-win .pitch-imgs::after{content:"";position:absolute;inset:0;background:rgba(19,160,90,.42);pointer-events:none;z-index:5}
   .board-inner.ft-win .pitch-half{filter:grayscale(.4) brightness(.55)}
   /* winning artwork centered, ~6 cells wide (6/16 = 37.5% of play area), square */
-  .ft-winwrap{position:absolute;inset:0;z-index:7;display:flex;align-items:center;justify-content:center;pointer-events:none}
+  .ft-winwrap{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
   .ft-winart{position:relative;width:50%;aspect-ratio:1;pointer-events:auto;box-shadow:0 18px 60px rgba(0,0,0,.55);outline:3px solid var(--green-bright);outline-offset:0}
   /* WINNER! label centered & blended over everything */
-  .board-state.ft-winlabel{z-index:11}
   .board-state.ft-winlabel .bs-big{font-size:clamp(40px,7vw,96px)}
 
   /* one-shot pixel confetti burst (~2.6s, does not loop) */
@@ -701,3 +705,23 @@
     .hiw-step:first-child,.hiw-step:last-child{min-height:auto}
     .hiw-step{opacity:1}
   }
+
+  /* ===== HOME current/next match cards (item 8) ===== */
+  .hl-matches{text-align:center}
+  .hm-wrap{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px;max-width:840px;margin:8px auto 0}
+  .hm-card{display:block;text-decoration:none;background:#0b0b0b;border:1px solid var(--line-strong);padding:18px 18px 14px;text-align:left;transition:border-color .15s ease,background .15s ease}
+  .hm-card:hover{border-color:var(--gold);background:#0e0e0e}
+  .hm-kind{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted-dim);margin-bottom:14px}
+  .hm-teams{display:flex;align-items:center;gap:10px}
+  .hm-team{flex:1;display:flex;flex-direction:column;align-items:center;gap:8px;min-width:0}
+  .hm-team img{width:64px;height:64px;object-fit:cover;border:1px solid #1a1a1a}
+  .hm-nm{font-family:var(--sans);font-weight:600;font-size:13px;color:#d8d4cb;text-align:center;line-height:1.2}
+  .hm-mid{flex:none;min-width:54px;text-align:center}
+  .hm-score{font-family:var(--sans);font-weight:700;font-size:30px;color:#fff;font-variant-numeric:tabular-nums;display:inline-flex;align-items:center;gap:6px}
+  .hm-score .hm-dash{color:#6f6b62;font-weight:600}
+  .hm-vs{font-family:var(--mono);font-size:14px;color:var(--muted-dim)}
+  .hm-foot{display:flex;align-items:center;justify-content:space-between;margin-top:16px;padding-top:12px;border-top:1px solid var(--line)}
+  .hm-live{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--red)}
+  .hm-st-ft{font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--muted-dim)}
+  .hm-st-up{font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--muted)}
+  .hm-go{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--gold)}
