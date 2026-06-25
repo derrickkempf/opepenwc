@@ -115,7 +115,6 @@ export default function App() {
           </button>
         </div>
       </header>
-      <hr className="hdr-rule" />
       <main id="app" key={r + ':' + (id || '')}>{view}</main>
       <footer>
         <a href="#/about">A DEWD idea</a><a href="#/rules">Rules</a><a href="#/terms">Terms</a><a href="#/privacy">Privacy</a><a href="#/admin">Admin</a>

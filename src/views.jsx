@@ -3,7 +3,7 @@ import { XLogo, FieldSvg, LogoSvg } from './components/svg.jsx';
 import AnimatedNumber from './components/AnimatedNumber.jsx';
 import {
   ROSTER_COUNT, ROUNDS, SCHEDULE, START_BASE, ADMIN_PASSCODE, COLORS, KICKOFF_S,
-  rosterImg, teamName, groupLetter, championOdds,
+  rosterImg, teamName, groupLetter, championOdds, pitchImg,
   fxTeams, fxMatchId, status, matchClock, canVote, winnerOf, champion, nextFixture, liveFixture, currentFixture,
   tallyMatch, myVoteFor, castShot, resetAllVotes, matchStats, shotReaction, shotKind, teamSub,
   tp, earnShare, earnOnce, dailyCheckIn, placeWager, resolveWagers, matchOdds,
@@ -403,15 +403,21 @@ function ShotOverlay({ side, seed }) {
    (50-100%); field-2 markings overlay (-100..1700); solid black goal boxes
    (1 cell x 2 cells, rows 3-4) sticking out one cell each side; vote zones over
    the two image rects only; center state; voted shot overlay; FT extras. */
-function PitchField({ aId, bId, zones, state, extra, votedSide, votedSeed }) {
+function PitchField({ aId, bId, zones, state, extra, votedSide, votedSeed, pitch }) {
+  /* Each match uses ONE pitch image behind BOTH halves, with the transparent
+     team art layered ON TOP (multiple backgrounds: art first = top layer). */
+  const halfBg = (id) => {
+    if (!id) return pitch ? `url('${pitch}')` : 'none';
+    return pitch ? `url('${rosterImg(id)}'), url('${pitch}')` : `url('${rosterImg(id)}')`;
+  };
   return (
     <div className="pitch-wrap mc-pitch arena">
       <div className="pitch-imgs">
-        <div className="pitch-half half hl" style={{ backgroundImage: aId ? `url('${rosterImg(aId)}')` : 'none' }}>
+        <div className="pitch-half half hl" style={{ backgroundImage: halfBg(aId), backgroundSize: 'cover, cover', backgroundPosition: 'center, center' }}>
           {aId && <div className="shot-hover"><div className="shot-cell" /></div>}
           {votedSide === 'l' && <ShotOverlay side="l" seed={votedSeed} />}
         </div>
-        <div className="pitch-half half hr" style={{ backgroundImage: bId ? `url('${rosterImg(bId)}')` : 'none' }}>
+        <div className="pitch-half half hr" style={{ backgroundImage: halfBg(bId), backgroundSize: 'cover, cover', backgroundPosition: 'center, center' }}>
           {bId && <div className="shot-hover"><div className="shot-cell" /></div>}
           {votedSide === 'r' && <ShotOverlay side="r" seed={votedSeed} />}
         </div>
@@ -659,7 +665,7 @@ function MatchPanel({ ctx, f, rerender }) {
       <div className="match-fade">
         {TitleRow}{StatusRow}
         <Board matchId={mId} onEdit={() => setSbOpen(true)}>
-          <PitchField aId={null} bId={null} state={<BoardState lbl="MATCHUP PENDING" />} />
+          <PitchField aId={null} bId={null} pitch={pitchImg(f)} state={<BoardState lbl="MATCHUP PENDING" />} />
         </Board>
         <p className="sb-sub">Waiting on the previous round to finish.</p>
         <MatchInfo ctx={ctx} f={f} t={t} mId={mId} />
@@ -702,7 +708,7 @@ function MatchPanel({ ctx, f, rerender }) {
       <div className="match-fade">
         {TitleRow}{StatusRow}
         <Board matchId={mId} phaseClass="ko" onEdit={() => setSbOpen(true)}>
-          <PitchField aId={t.a} bId={t.b} state={koState} />
+          <PitchField aId={t.a} bId={t.b} pitch={pitchImg(f)} state={koState} />
         </Board>
         <button className="wager-cta" onClick={() => { if (!ctx.id) return requireCheckIn(ctx); openWager(ctx, f, rerender); }}>Wager TP on this match →</button>
         <p className="wager-note">Taste Points (TP) is the game critique currency. TP has no monetary value.</p>
@@ -724,7 +730,7 @@ function MatchPanel({ ctx, f, rerender }) {
       <div className="match-fade">
         {TitleRow}{StatusRow}
         <Board matchId={mId} phaseClass="ht" onEdit={() => setSbOpen(true)}>
-          <PitchField aId={t.a} bId={t.b} state={htState} />
+          <PitchField aId={t.a} bId={t.b} pitch={pitchImg(f)} state={htState} />
         </Board>
         <Scoreboard t={t} tl={tl} finished={false} />
         <p className="sb-sub">Take your shot. Choose your Opepen. Left, or Right?</p>
@@ -754,7 +760,7 @@ function MatchPanel({ ctx, f, rerender }) {
       <div className="match-fade">
         {TitleRow}{StatusRow}
         <Board matchId={mId} phaseClass="ft-win" onEdit={() => setSbOpen(true)}>
-          <PitchField aId={t.a} bId={t.b} state={null} extra={extra} />
+          <PitchField aId={t.a} bId={t.b} pitch={pitchImg(f)} state={null} extra={extra} />
         </Board>
         <Scoreboard t={t} tl={tl} finished winner={w} />
         <p className="sb-sub">{teamName(w)} go through. Hover the artwork for the match stats layer.</p>
@@ -777,7 +783,7 @@ function MatchPanel({ ctx, f, rerender }) {
     <div className="match-fade">
       {TitleRow}{StatusRow}
       <Board matchId={mId} onEdit={() => setSbOpen(true)}>
-        <PitchField aId={t.a} bId={t.b} zones={zones} state={stateNode} extra={extra}
+        <PitchField aId={t.a} bId={t.b} pitch={pitchImg(f)} zones={zones} state={stateNode} extra={extra}
           votedSide={mv ? (mv.side === 'LFT' ? 'l' : 'r') : null} votedSeed={mId} />
       </Board>
       <Scoreboard t={t} tl={tl} finished={false} />

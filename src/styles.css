@@ -19,7 +19,7 @@
   img{display:block}
 
   /* ===== HEADER ===== */
-  header{position:relative;max-width:1700px;margin:0 auto;padding:20px 28px 16px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:16px}
+  header{position:sticky;top:0;z-index:50;background:var(--bg);max-width:1700px;margin:0 auto;padding:20px 28px 16px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:16px}
   .hdr-wordmark{font-family:var(--sans);font-weight:700;font-size:13px;line-height:1.08;letter-spacing:.01em;color:var(--gold);text-transform:none;z-index:1;pointer-events:none}
   /* Centered trophy is a real link to home — keep it clickable above siblings. */
   .hdr-logo{justify-self:center;display:flex;align-items:center;position:relative;z-index:3;pointer-events:auto;cursor:pointer}
@@ -27,7 +27,6 @@
   .hdr-right{justify-self:end;display:flex;align-items:center;position:relative;z-index:2}
   .hamburger{background:none;border:none;padding:8px;display:flex;flex-direction:column;gap:5px;cursor:pointer}
   .hamburger span{display:block;width:30px;height:2px;background:var(--gold)}
-  .hdr-rule{max-width:none;width:100%;height:1px;background:var(--gold);opacity:.5;border:none;margin:0}
 
   /* ===== HAMBURGER MENU — RIGHT-SIDE DRAWER ===== */
   .menu-overlay{position:fixed;inset:0;z-index:300;display:flex;justify-content:flex-end;background:rgba(0,0,0,.5);animation:menuFade .2s ease both}
@@ -474,11 +473,11 @@
 
   /* FIELD MARKINGS overlay (field-2): spans x:-100..1700 => 1800 wide @ x:-100.
      left:-6.25% width:112.5% of the 1600-wide play area, full height. */
-  .field-svg{position:absolute;top:0;left:-6.25%;width:112.5%;height:100%;pointer-events:none;overflow:visible}
+  .field-svg{position:absolute;top:0;left:-6.25%;width:112.5%;height:100%;pointer-events:none;overflow:visible;z-index:1;opacity:80%}
 
   /* SOLID BLACK GOAL BOXES: 1 cell wide x 2 cells tall, rows 3-4, sticking out
      one cell. left:-6.25% width:6.25% (=100px), top:37.5% height:25% (=200px). */
-  .goal-box{position:absolute;width:6.25%;height:25%;top:37.5%;background:#000;pointer-events:none}
+  .goal-box{position:absolute;width:6.25%;height:25%;top:37.5%;background:#000;pointer-events:none;z-index:1}
   .goal-box.l{left:-6.25%}
   .goal-box.r{right:-6.25%}
 
@@ -497,8 +496,7 @@
   .board-state .bs-lbl.bs-blend{color:#fff;mix-blend-mode:difference}
 
   /* phase states (text-only per-second updates; no DOM rebuild) */
-  .board-inner.ko .pitch-half{filter:none}
-  .board-inner.ko .pitch-imgs::after{content:"";position:absolute;inset:0;background:rgba(19,160,90,.34);pointer-events:none;z-index:5}
+  .board-inner.ko .pitch-half{filter:grayscale(1) brightness(.7)}
   .board-inner.ht .pitch-half{filter:grayscale(1) brightness(.7)}
 
   /* VOTE ZONES — ONLY the two team-image rectangles are clickable. */
@@ -532,7 +530,7 @@
   .board-inner.ft-win .pitch-half{filter:grayscale(.4) brightness(.55)}
   /* winning artwork centered, ~6 cells wide (6/16 = 37.5% of play area), square */
   .ft-winwrap{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
-  .ft-winart{position:relative;width:50%;aspect-ratio:1;pointer-events:auto;box-shadow:0 18px 60px rgba(0,0,0,.55);outline:3px solid var(--green-bright);outline-offset:0}
+  .ft-winart{position:relative;width:50%;aspect-ratio:1;pointer-events:auto;box-shadow:0 18px 60px rgba(0,0,0,.55);outline:none}
   /* WINNER! label centered & blended over everything */
   .board-state.ft-winlabel .bs-big{font-size:clamp(40px,7vw,96px)}
 

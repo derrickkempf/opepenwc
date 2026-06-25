@@ -10,6 +10,21 @@ export const COLORS = ['#c0392b', '#e67e22', '#f1c40f', '#27ae60', '#16a085', '#
 export const SHARE_URL = 'https://opepenworldcup.xyz';
 export const ROSTER_COUNT = 40;
 export function rosterImg(id) { return `/assets/teams/OpepenWC-Teams-${id}.webp`; }
+export const PITCH_COUNT = 5;
+/* Deterministic pitch background per match: same fixture always gets the same
+   pitch, consecutive fixtures vary. Uses the fixture's position in SCHEDULE
+   (falls back to a stable hash of f.id if not found). Returns 1..PITCH_COUNT. */
+export function fixtureIndex(f) {
+  if (!f) return 0;
+  const i = SCHEDULE.findIndex((x) => x.id === f.id);
+  if (i >= 0) return i;
+  let h = 0; const s = String(f.id || ''); for (let k = 0; k < s.length; k++) h = (h * 31 + s.charCodeAt(k)) | 0;
+  return Math.abs(h);
+}
+export function pitchImg(f) {
+  const n = (fixtureIndex(f) % PITCH_COUNT) + 1;
+  return `/assets/pitches/OpepenWC-Pitch-${n}.webp`;
+}
 export const TEAM_NAMES = {
   1: 'The Crimson Set', 2: 'Cobalt City', 3: 'The Checkers', 4: 'Halftone United',
   5: 'The Negatives', 6: 'Pigment FC', 7: 'The Editions', 8: 'Monotype Rovers',
