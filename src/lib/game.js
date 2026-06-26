@@ -2,6 +2,7 @@
 // Identity-bound functions take the Privy identity id (e.g. "privy:abc123") as a param.
 
 import { J, storage } from './storage.js';
+import { KITS } from './kitsData.js';
 
 /* ===== CONFIG / ROSTER ===== */
 export const ADMIN_PASSCODE = 'dewdOpepen082';
@@ -9,7 +10,28 @@ export const TICKER_ITEMS = ['YOUR BRAND HERE', 'THIS TICKER Ξ0.69 PER WEEK', '
 export const COLORS = ['#c0392b', '#e67e22', '#f1c40f', '#27ae60', '#16a085', '#2980b9', '#8e44ad', '#d35400', '#7f8c8d', '#e84393'];
 export const SHARE_URL = 'https://opepenworldcup.xyz';
 export const ROSTER_COUNT = 40;
-export function rosterImg(id) { return `/assets/teams/OpepenWC-Teams-${id}.webp?v=2`; }
+/* ── Crisp SVG rendering from 8x8 grid data (no raster images) ── */
+const _svgCache = {};
+function encSvg(svg) {
+  return 'data:image/svg+xml,' + encodeURIComponent(svg)
+    .replace(/'/g, '%27').replace(/\(/g, '%28').replace(/\)/g, '%29');
+}
+function gridSVG(palette, grid, transparent) {
+  let rects = '';
+  for (let i = 0; i < 64; i++) {
+    const v = grid[i]; const c = palette[v] || '#000000';
+    if (transparent && (v === 0 || (c.length === 9 && c.slice(7) === '00'))) continue;
+    rects += `<rect x="${i % 8}" y="${(i / 8) | 0}" width="1.02" height="1.02" fill="${c.slice(0, 7)}"/>`;
+  }
+  return encSvg(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8" shape-rendering="crispEdges">${rects}</svg>`);
+}
+export function rosterImg(id, kit = 'home') {
+  const k = kit === 'away' ? 'away' : 'home';
+  const key = k + ':' + id;
+  if (_svgCache[key]) return _svgCache[key];
+  const S = KITS[k]; const g = S.grids[id - 1] || S.grids[0];
+  return (_svgCache[key] = gridSVG(S.palette, g, true));
+}
 export const PITCH_COUNT = 5;
 /* Deterministic pitch background per match: same fixture always gets the same
    pitch, consecutive fixtures vary. Uses the fixture's position in SCHEDULE
@@ -21,10 +43,13 @@ export function fixtureIndex(f) {
   let h = 0; const s = String(f.id || ''); for (let k = 0; k < s.length; k++) h = (h * 31 + s.charCodeAt(k)) | 0;
   return Math.abs(h);
 }
-export function pitchImg(f) {
-  const n = (fixtureIndex(f) % PITCH_COUNT) + 1;
-  return `/assets/pitches/OpepenWC-Pitch-${n}.webp?v=2`;
+export function pitchByN(n) {
+  const key = 'pitch:' + n;
+  if (_svgCache[key]) return _svgCache[key];
+  const P = KITS.pitch;
+  return (_svgCache[key] = gridSVG(P.palette, P.grids[(n - 1) % P.grids.length], false));
 }
+export function pitchImg(f) { return pitchByN((fixtureIndex(f) % PITCH_COUNT) + 1); }
 export const TEAM_NAMES = {
   1: 'The Crimson Set', 2: 'Cobalt City', 3: 'The Checkers', 4: 'Halftone United',
   5: 'The Negatives', 6: 'Pigment FC', 7: 'The Editions', 8: 'Monotype Rovers',
@@ -78,7 +103,8 @@ export const SCHEDULE = (() => {
   return out;
 })();
 export function fxById(id) { return SCHEDULE.find((f) => f.id === id); }
-export function fxMatchId(f) { return 'm:' + f.id; }
+export const EPOCH = String(START_BASE);
+export function fxMatchId(f) { return 'm:' + EPOCH + ':' + f.id; }
 
 /* Seeds: qualifiers pair 1v40,2v39,...  Later rounds resolve from prior winners. */
 export function fxTeams(f) {

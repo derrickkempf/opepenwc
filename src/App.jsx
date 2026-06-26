@@ -5,7 +5,7 @@ import { deriveIdentity } from './lib/identity.js';
 import { hydrate, subscribeRealtime, SHARED } from './lib/storage.js';
 import { nFmt, tp, myName } from './lib/game.js';
 import {
-  ViewHome, ViewPlay, ViewTeams, ViewBracket, ViewStandings, ViewEarn,
+  ViewHome, ViewPlay, ViewTeams, ViewKits, ViewBracket, ViewStandings, ViewEarn,
   ViewBanter, ViewProfile, ViewRules, ViewAbout, ViewSponsor,
   ViewTerms, ViewPrivacy, ViewAdmin, ModalRoot, Toast, Flash,
 } from './views.jsx';
@@ -22,7 +22,7 @@ function useHash() {
 
 /* ===== right-side drawer menu (from prototype) ===== */
 const MENU_LINKS = [
-  ['#/play', 'Play'], ['#/teams', 'Teams'], ['#/bracket', 'Bracket'],
+  ['#/play', 'Play'], ['#/teams', 'Teams'], ['#/kits', 'Kits'], ['#/bracket', 'Bracket'],
   ['#/standings', 'Standings'], ['#/earn', 'Earn'], ['#/rules', 'Rules'],
 ];
 function MenuDrawer({ open, onClose, ctx }) {
@@ -91,6 +91,7 @@ export default function App() {
   else if (r.startsWith('#/play')) view = <ViewPlay ctx={ctx} />;
   else if (r.startsWith('#/login')) view = <ViewPlay ctx={ctx} loginOnMount />;
   else if (r.startsWith('#/teams')) view = <ViewTeams ctx={ctx} />;
+  else if (r.startsWith('#/kits')) view = <ViewKits />;
   else if (r.startsWith('#/bracket')) view = <ViewBracket ctx={ctx} />;
   else if (r.startsWith('#/standings')) view = <ViewStandings ctx={ctx} />;
   else if (r.startsWith('#/earn')) view = <ViewEarn ctx={ctx} />;

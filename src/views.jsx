@@ -2,8 +2,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { XLogo, FieldSvg, LogoSvg } from './components/svg.jsx';
 import AnimatedNumber from './components/AnimatedNumber.jsx';
 import {
-  ROSTER_COUNT, ROUNDS, SCHEDULE, START_BASE, ADMIN_PASSCODE, COLORS, KICKOFF_S,
-  rosterImg, teamName, groupLetter, championOdds, pitchImg,
+  ROSTER_COUNT, PITCH_COUNT, ROUNDS, SCHEDULE, START_BASE, ADMIN_PASSCODE, COLORS, KICKOFF_S,
+  rosterImg, teamName, groupLetter, championOdds, pitchImg, pitchByN,
   fxTeams, fxMatchId, status, matchClock, canVote, winnerOf, champion, nextFixture, liveFixture, currentFixture,
   tallyMatch, myVoteFor, castShot, resetAllVotes, matchStats, shotReaction, shotKind, teamSub,
   tp, earnShare, earnOnce, dailyCheckIn, placeWager, resolveWagers, matchOdds,
@@ -205,7 +205,7 @@ function HomeMatchCard({ f, kind }) {
       <div className="hm-kind">{labelKind} · {roundDisp(f)}</div>
       <div className="hm-teams">
         <div className="hm-team">
-          <img src={t.a ? rosterImg(t.a) : '/assets/teams/OpepenWC-Teams-1.webp'} alt="" style={{ opacity: t.a ? 1 : 0.2 }} />
+          <img src={t.a ? rosterImg(t.a) : rosterImg(1)} alt="" style={{ opacity: t.a ? 1 : 0.2 }} />
           <span className="hm-nm">{t.a ? teamName(t.a) : 'TBD'}</span>
         </div>
         <div className="hm-mid">
@@ -214,7 +214,7 @@ function HomeMatchCard({ f, kind }) {
             : <span className="hm-vs">v</span>}
         </div>
         <div className="hm-team r">
-          <img src={t.b ? rosterImg(t.b) : '/assets/teams/OpepenWC-Teams-1.webp'} alt="" style={{ opacity: t.b ? 1 : 0.2 }} />
+          <img src={t.b ? rosterImg(t.b) : rosterImg(1)} alt="" style={{ opacity: t.b ? 1 : 0.2 }} />
           <span className="hm-nm">{t.b ? teamName(t.b) : 'TBD'}</span>
         </div>
       </div>
@@ -406,18 +406,18 @@ function ShotOverlay({ side, seed }) {
 function PitchField({ aId, bId, zones, state, extra, votedSide, votedSeed, pitch }) {
   /* Each match uses ONE pitch image behind BOTH halves, with the transparent
      team art layered ON TOP (multiple backgrounds: art first = top layer). */
-  const halfBg = (id) => {
+  const halfBg = (id, kit) => {
     if (!id) return pitch ? `url('${pitch}')` : 'none';
-    return pitch ? `url('${rosterImg(id)}'), url('${pitch}')` : `url('${rosterImg(id)}')`;
+    return pitch ? `url('${rosterImg(id, kit)}'), url('${pitch}')` : `url('${rosterImg(id, kit)}')`;
   };
   return (
     <div className="pitch-wrap mc-pitch arena">
       <div className="pitch-imgs">
-        <div className="pitch-half half hl" style={{ backgroundImage: halfBg(aId), backgroundSize: 'cover, cover', backgroundPosition: 'center, center' }}>
+        <div className="pitch-half half hl" style={{ backgroundImage: halfBg(aId, 'home'), backgroundSize: 'cover, cover', backgroundPosition: 'center, center' }}>
           {aId && <div className="shot-hover"><div className="shot-cell" /></div>}
           {votedSide === 'l' && <ShotOverlay side="l" seed={votedSeed} />}
         </div>
-        <div className="pitch-half half hr" style={{ backgroundImage: halfBg(bId), backgroundSize: 'cover, cover', backgroundPosition: 'center, center' }}>
+        <div className="pitch-half half hr" style={{ backgroundImage: halfBg(bId, 'away'), backgroundSize: 'cover, cover', backgroundPosition: 'center, center' }}>
           {bId && <div className="shot-hover"><div className="shot-cell" /></div>}
           {votedSide === 'r' && <ShotOverlay side="r" seed={votedSeed} />}
         </div>
@@ -748,7 +748,7 @@ function MatchPanel({ ctx, f, rerender }) {
       <>
         <div className="ft-winwrap">
           <div className="ft-shot block ft-winart">
-            <div style={{ position: 'absolute', inset: 0, backgroundImage: `url('${rosterImg(w)}')`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
+            <div style={{ position: 'absolute', inset: 0, backgroundColor: '#fff', backgroundImage: `url('${rosterImg(w, w === t.b ? 'away' : 'home')}')`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
             <FtStatLayer mId={mId} />
           </div>
         </div>
@@ -1290,6 +1290,71 @@ export function ViewTeams({ ctx }) {
     </>
   );
 }
+
+/* ===== KITS VIEWER (#/kits) — Home/Away + pitch gallery ===== */
+function kitsPitchUrl(n) { return pitchByN(n); }
+export function ViewKits() {
+  const [team, setTeam] = useState(1);            // 1..ROSTER_COUNT
+  const [kit, setKit] = useState('home');         // 'home' | 'away'
+  const [pitch, setPitch] = useState(1);          // 1..PITCH_COUNT
+  const pitchUrl = kitsPitchUrl(pitch);
+  const teams = Array.from({ length: ROSTER_COUNT }, (_, k) => k + 1);
+  const pitches = Array.from({ length: PITCH_COUNT }, (_, k) => k + 1);
+  return (
+    <>
+      <h1 className="page-title">Kits</h1>
+      <p className="page-sub">40 teams · 2 kits · 5 pitches</p>
+
+      <div className="kits-controls">
+        <div className="kits-ctl">
+          <span className="kits-lab">Kit</span>
+          <div className="kits-seg" role="tablist" aria-label="Kit type">
+            <button className={kit === 'home' ? 'on' : ''} role="tab" aria-selected={kit === 'home'} onClick={() => setKit('home')}>Home</button>
+            <button className={kit === 'away' ? 'on' : ''} role="tab" aria-selected={kit === 'away'} onClick={() => setKit('away')}>Away</button>
+          </div>
+        </div>
+        <div className="kits-ctl">
+          <span className="kits-lab">Pitch</span>
+          <div className="kits-pitches" role="radiogroup" aria-label="Pitch background">
+            {pitches.map((n) => (
+              <button key={n} role="radio" aria-checked={pitch === n}
+                className={'kits-pitch' + (pitch === n ? ' active' : '')}
+                style={{ backgroundImage: `url('${kitsPitchUrl(n)}')` }}
+                onClick={() => setPitch(n)} aria-label={`Pitch ${n}`} />
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="kits-piece">
+        <div className="kits-frame" style={{ backgroundImage: `url('${pitchUrl}')` }}>
+          <img className="kits-hero" src={rosterImg(team, kit)} alt={teamName(team)} />
+        </div>
+        <div className="kits-railwrap">
+          <div className="kits-rail" role="listbox" aria-label="Teams">
+            {teams.map((i) => (
+              <button key={i} role="option" aria-selected={team === i}
+                className={'kits-thumb' + (team === i ? ' active' : '')}
+                style={{ backgroundImage: `url('${pitchUrl}')` }}
+                onClick={() => setTeam(i)} aria-label={teamName(i)}>
+                <img src={rosterImg(i, kit)} alt="" loading="lazy" />
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="kits-placard">
+        <div>
+          <p className="kits-name">{teamName(team)}</p>
+          <p className="kits-meta">{kit.toUpperCase()} KIT · TEAM {String(team).padStart(2, '0')} / {ROSTER_COUNT}</p>
+        </div>
+        <p className="kits-hint">Toggle <b>kit</b>, pick a <b>pitch</b> + <b>team</b> · transparent cells reveal the pitch</p>
+      </div>
+    </>
+  );
+}
+
 function openTeamCard(ctx, id) {
   let w = 0, l = 0;
   SCHEDULE.forEach((f) => { if (status(f) !== 'ft') return; const t = fxTeams(f); if (t.a !== id && t.b !== id) return; const win = winnerOf(f.id); if (win === id) w++; else if (win) l++; });
@@ -1342,9 +1407,9 @@ export function ViewBracket({ ctx }) {
                 <div className={'fx' + (st === 'ft' ? ' fx-ft' : '')} key={f.id} onClick={() => {
                   openMatchDetail(ctx, f, rerender);
                 }}>
-                  <img src={t.a ? rosterImg(t.a) : '/assets/teams/OpepenWC-Teams-1.webp'} alt="" style={{ opacity: t.a ? 1 : 0.15 }} />
+                  <img src={t.a ? rosterImg(t.a) : rosterImg(1)} alt="" style={{ opacity: t.a ? 1 : 0.15 }} />
                   <span className={'nm' + (win === t.a ? ' win' : '')}>{t.a ? teamName(t.a) : 'TBD'}</span><span className="vs">v</span>
-                  <img src={t.b ? rosterImg(t.b) : '/assets/teams/OpepenWC-Teams-1.webp'} alt="" style={{ opacity: t.b ? 1 : 0.15 }} />
+                  <img src={t.b ? rosterImg(t.b) : rosterImg(1)} alt="" style={{ opacity: t.b ? 1 : 0.15 }} />
                   <span className={'nm' + (win === t.b ? ' win' : '')}>{t.b ? teamName(t.b) : 'TBD'}</span>
                   <span className="time">{fmtDay(f.kickoff)}<br />{fmtTime(f.kickoff)}</span>
                   <span className={'st ' + st}>{st === 'live' ? 'LIVE' : st === 'ft' ? 'FT' : '·'}</span>
@@ -1719,7 +1784,7 @@ export function ViewAdmin() {
         <div className="sec-title">Schedule</div>
         <p className="note" style={{ marginTop: 0 }}>First kickoff: <b>{fmtDay(START_BASE)} {fmtTime(START_BASE)}</b>. Change the <code>START_BASE</code> calc near the top of src/lib/game.js to reschedule. {SCHEDULE.length} fixtures over 18 days.</p>
         <div className="sec-title" style={{ marginTop: 22 }}>Roster</div>
-        <p className="note" style={{ marginTop: 0 }}>40 images load from <code>/assets/teams/</code>. Replace files there to change the roster.</p>
+        <p className="note" style={{ marginTop: 0 }}>Team & pitch art is rendered as crisp SVG from kit grid data (src/lib/kitsData.js) — no image files.</p>
         <div className="sec-title" style={{ marginTop: 22 }}>Votes</div>
         <button className="b-ghost" onClick={() => { if (confirm('Reset all match votes for everyone?')) { resetAllVotes(); toast('All votes reset'); } }}>Reset ALL match votes</button>
         <div className="sec-title" style={{ marginTop: 22 }}>Session</div>
