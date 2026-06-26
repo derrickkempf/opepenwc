@@ -19,7 +19,7 @@
   img{display:block}
 
   /* ===== HEADER ===== */
-  header{position:sticky;top:0;z-index:50;background:var(--bg);max-width:1700px;margin:0 auto;padding:20px 28px 16px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:16px}
+  header{position:sticky;top:0;z-index:50;background:transparent;max-width:1700px;margin:0 auto;padding:20px 28px 16px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:16px}
   .hdr-wordmark{font-family:var(--sans);font-weight:700;font-size:13px;line-height:1.08;letter-spacing:.01em;color:var(--gold);text-transform:none;z-index:1;pointer-events:none}
   /* Centered trophy is a real link to home — keep it clickable above siblings. */
   .hdr-logo{justify-self:center;display:flex;align-items:center;position:relative;z-index:3;pointer-events:auto;cursor:pointer}

@@ -9,7 +9,7 @@ export const TICKER_ITEMS = ['YOUR BRAND HERE', 'THIS TICKER Ξ0.69 PER WEEK', '
 export const COLORS = ['#c0392b', '#e67e22', '#f1c40f', '#27ae60', '#16a085', '#2980b9', '#8e44ad', '#d35400', '#7f8c8d', '#e84393'];
 export const SHARE_URL = 'https://opepenworldcup.xyz';
 export const ROSTER_COUNT = 40;
-export function rosterImg(id) { return `/assets/teams/OpepenWC-Teams-${id}.webp`; }
+export function rosterImg(id) { return `/assets/teams/OpepenWC-Teams-${id}.webp?v=2`; }
 export const PITCH_COUNT = 5;
 /* Deterministic pitch background per match: same fixture always gets the same
    pitch, consecutive fixtures vary. Uses the fixture's position in SCHEDULE
@@ -23,7 +23,7 @@ export function fixtureIndex(f) {
 }
 export function pitchImg(f) {
   const n = (fixtureIndex(f) % PITCH_COUNT) + 1;
-  return `/assets/pitches/OpepenWC-Pitch-${n}.webp`;
+  return `/assets/pitches/OpepenWC-Pitch-${n}.webp?v=2`;
 }
 export const TEAM_NAMES = {
   1: 'The Crimson Set', 2: 'Cobalt City', 3: 'The Checkers', 4: 'Halftone United',
