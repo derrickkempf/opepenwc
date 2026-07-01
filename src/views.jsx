@@ -436,7 +436,8 @@ function PitchField({ aId, bId, zones, state, extra, votedSide, votedSeed, pitch
    + signboard edit button. The play area sits inside the marquee frame. */
 function Board({ children, phaseClass, matchId, onEdit }) {
   return (
-    <div className="board">
+    /* id="stage" anchors the page background grid to this board (GridFX.jsx) */
+    <div className="board" id="stage">
       {/* marquee frame — rendered BELOW the play area (lower z-index) */}
       <Marquee edge="top" matchId={matchId} />
       <Marquee edge="bottom" matchId={matchId} />

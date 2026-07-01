@@ -6,12 +6,26 @@
     --sans:'Geist',system-ui,-apple-system,sans-serif;
     --mono:'Geist Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
     --maxw:1120px;
+    /* Background grid (from the art-world-cup prototype). One cell = 1/18 of the
+       match board width (the board is 18 logical cells wide, max 1800px), so the
+       page grid lines up with the board's pixel cells. GridFX.jsx measures the
+       live board and keeps size/position exact; this is the pre-JS default. */
+    --grid-line:rgba(255,255,255,.075);
+    --u:min(calc(100vw / 18), 100px);
   }
   *{box-sizing:border-box}
   html{scroll-behavior:smooth}
   html,body{margin:0;padding:0}
   /* Geist sans base weight = semibold (600); big display headings keep their own 700+ */
-  body{background:var(--bg);color:var(--fg);font-family:var(--sans);font-weight:600;-webkit-font-smoothing:antialiased;min-height:100vh}
+  body{
+    background:
+      linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px),
+      radial-gradient(120% 80% at 50% -8%, #14140f 0%, var(--bg) 46%),
+      var(--bg);
+    background-size:var(--u) var(--u), var(--u) var(--u), auto, auto;
+    background-origin:border-box;
+    color:var(--fg);font-family:var(--sans);font-weight:600;-webkit-font-smoothing:antialiased;min-height:100vh}
   /* Geist Mono only ships 400/500 — keep mono UI text at its normal weight, not the semibold base */
   .marquee,.page-sub,.hint,.note,footer,.menu-foot,.cm-foot,.wager-note{font-weight:400}
   a{color:inherit;text-decoration:none}

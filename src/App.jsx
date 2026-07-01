@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from './auth.jsx';
 import { LogoSvg } from './components/svg.jsx';
+import GridFX from './components/GridFX.jsx';
 import { deriveIdentity } from './lib/identity.js';
 import { hydrate, subscribeRealtime, SHARED } from './lib/storage.js';
 import { nFmt, tp, myName } from './lib/game.js';
@@ -107,6 +108,7 @@ export default function App() {
 
   return (
     <div className={isPlay ? 'route-play' : (isHome ? 'route-home' : '')}>
+      <GridFX />
       <header>
         <div className="hdr-wordmark">2026 Opepen<br />Art World Cup</div>
         <a className="hdr-logo" href="#/" title="Opepen World Cup"><LogoSvg /></a>

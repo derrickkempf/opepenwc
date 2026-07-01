@@ -10,6 +10,15 @@ Auth and embedded wallets are handled by **Privy** (email, Google, Apple, X/Twit
 wallets). Shared data (votes, chat, comments, player profiles) lives in **Supabase**; your bracket,
 picks, and Taste Points stay on your own device.
 
+**Visuals merged from the `opepenartworldcup` prototype:** the full-page background grid
+(one cell = 1/18 of the match board) with the top radial glow, and the ambient/hover
+"crowd flash" squares (`src/components/GridFX.jsx`, mounted in `App.jsx`). The match board
+carries `id="stage"` and GridFX keeps the page grid sized and positioned so every board pixel
+cell sits exactly on a page grid line. Team/kit/pitch imagery is composed at runtime from the
+8×8 palette data in `src/lib/kitsData.js` (the same data as the prototype's byte-encoded
+tokens), rendered as crisp inline SVG — the webp files in `public/assets/` are unused and
+kept only for reference.
+
 ## Tech
 
 - Vite + React 18
