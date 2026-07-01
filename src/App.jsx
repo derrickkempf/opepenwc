@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from './auth.jsx';
+import { LogoSvg } from './components/svg.jsx';
 import { deriveIdentity } from './lib/identity.js';
-import GridFX from './components/GridFX.jsx';
 import { hydrate, subscribeRealtime, SHARED } from './lib/storage.js';
 import { nFmt, tp, myName } from './lib/game.js';
 import {
@@ -20,27 +20,11 @@ function useHash() {
   return hash;
 }
 
-/* Top tab nav = Play / Teams / Kits / Bracket (prototype). Everything else lives
-   in the hamburger drawer. */
-const TOP_NAV = [
-  ['#/play', 'Play'], ['#/teams', 'Teams'], ['#/kits', 'Kits'], ['#/bracket', 'Bracket'],
-];
-/* ===== right-side drawer menu (secondary destinations) ===== */
+/* ===== right-side drawer menu (from prototype) ===== */
 const MENU_LINKS = [
-  ['#/standings', 'Standings'], ['#/earn', 'Earn'], ['#/banter', 'Critique'],
-  ['#/rules', 'Rules'], ['#/about', 'About'], ['#/sponsor', 'Sponsor'], ['#/admin', 'Admin'],
+  ['#/play', 'Play'], ['#/teams', 'Teams'], ['#/kits', 'Kits'], ['#/bracket', 'Bracket'],
+  ['#/standings', 'Standings'], ['#/earn', 'Earn'], ['#/rules', 'Rules'],
 ];
-
-function TopNav({ route }) {
-  const active = (h) => route.startsWith(h) || (h === '#/play' && (route === '#/' || route.startsWith('#/login')));
-  return (
-    <nav className="nav wrap">
-      {TOP_NAV.map(([h, t]) => (
-        <a key={h} href={h} className={active(h) ? 'on' : ''}>{t}</a>
-      ))}
-    </nav>
-  );
-}
 function MenuDrawer({ open, onClose, ctx }) {
   if (!open) return null;
   const name = ctx.id ? myName(ctx.id, ctx.identity?.short) : null;
@@ -123,16 +107,15 @@ export default function App() {
 
   return (
     <div className={isPlay ? 'route-play' : (isHome ? 'route-home' : '')}>
-      <GridFX />
       <header>
-        <div className="eyebrow">2026</div>
-        <a href="#/" style={{ textDecoration: 'none' }}><h1>Opepen Art World Cup</h1></a>
-        <p className="sub">A 40-team single-elimination tournament decided on instinct. Trust your gut, or risk missing completely.</p>
-        <button className="hamburger" aria-label="Open menu" onClick={() => setMenuOpen(true)}>
-          <span></span><span></span><span></span>
-        </button>
+        <div className="hdr-wordmark">2026 Opepen<br />Art World Cup</div>
+        <a className="hdr-logo" href="#/" title="Opepen World Cup"><LogoSvg /></a>
+        <div className="hdr-right">
+          <button className="hamburger" aria-label="Open menu" onClick={() => setMenuOpen(true)}>
+            <span></span><span></span><span></span>
+          </button>
+        </div>
       </header>
-      <TopNav route={r} />
       <main id="app" key={r + ':' + (id || '')}>{view}</main>
       <footer>
         <a href="#/about">A DEWD idea</a><a href="#/rules">Rules</a><a href="#/terms">Terms</a><a href="#/privacy">Privacy</a><a href="#/admin">Admin</a>
