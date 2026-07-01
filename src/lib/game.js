@@ -13,8 +13,11 @@ export const ROSTER_COUNT = 40;
 /* ── Crisp SVG rendering from 8x8 grid data (no raster images) ── */
 const _svgCache = {};
 function encSvg(svg) {
-  return 'data:image/svg+xml,' + encodeURIComponent(svg)
-    .replace(/'/g, '%27').replace(/\(/g, '%28').replace(/\)/g, '%29');
+  // Embed the artwork directly in the app as a base64 data URI (no external image files).
+  const b64 = (typeof btoa === 'function')
+    ? btoa(svg)
+    : Buffer.from(svg, 'binary').toString('base64');
+  return 'data:image/svg+xml;base64,' + b64;
 }
 function gridSVG(palette, grid, transparent) {
   let rects = '';

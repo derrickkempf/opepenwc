@@ -228,12 +228,12 @@
   .cb-title{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);text-align:center;margin-bottom:6px}
   .cb-svg{display:block;width:100%;height:auto}
   .cb-ring{fill:none;stroke:#141414;stroke-width:1}
-  .cb-arc{fill:none;stroke:#2a2a2a;stroke-width:4;stroke-linecap:round}
-  .cb-arc.ft{stroke:#3f6b50}
-  .cb-arc.live{stroke:var(--gold);stroke-width:6;animation:cbpulse 1.4s ease-in-out infinite}
-  .cb-imgring{fill:none;stroke:#000;stroke-width:1.2}
-  .cb-imgring.live{stroke:var(--gold);stroke-width:1.6}
-  .cb-center{fill:#0b0b0b;stroke:var(--line-strong);stroke-width:1.5}
+  .cb-arc{fill:none;stroke:#2a2a2a;stroke-width:32;stroke-linecap:butt}
+  .cb-arc.ft{stroke:#2f6b46}
+  .cb-arc.live{stroke:var(--gold);stroke-width:32;stroke-linecap:round;animation:cbpulse 1.4s ease-in-out infinite}
+  .cb-imgring{fill:none;stroke:#0a0a0a;stroke-width:2}
+  .cb-imgring.live{stroke:#0a0a0a;stroke-width:2}
+  .cb-center{fill:#ffffff;stroke:#ffffff;stroke-width:1.5}
   .cb-center.live{stroke:var(--gold);animation:cbpulse 1.4s ease-in-out infinite}
   .cb-champring{fill:none;stroke:var(--gold);stroke-width:2}
   .cb-trophy{font-size:34px}

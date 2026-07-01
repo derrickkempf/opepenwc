@@ -524,9 +524,11 @@ function arcPath(cx, cy, r, a0, a1) {
 function CircularBracket() {
   const SZ = 560, cx = SZ / 2, cy = SZ / 2;
   // outer→inner radii per round (r1..r6). r6 = champion center.
-  const radii = { r1: 250, r2: 205, r3: 162, r4: 122, r5: 84, r6: 0 };
+  // outer→inner radii, evenly spaced 42px apart so the 32px bands keep a ~10px gap
+  const radii = { r1: 250, r2: 208, r3: 166, r4: 124, r5: 82, r6: 0 };
   const liveId = (liveFixture() || {}).id;
-  const imgR = { r1: 9, r2: 12, r3: 16, r4: 20, r5: 24 };
+  // node radius kept <=16 so each team circle sits inside the 32px band
+  const imgR = { r1: 13, r2: 13, r3: 14, r4: 14, r5: 15 };
   const arcs = [];
   const imgs = [];
   const defs = [];
