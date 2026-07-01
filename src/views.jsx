@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { XLogo, FieldSvg, LogoSvg } from './components/svg.jsx';
 import AnimatedNumber from './components/AnimatedNumber.jsx';
 import {
-  ROSTER_COUNT, PITCH_COUNT, ROUNDS, SCHEDULE, START_BASE, ADMIN_PASSCODE, COLORS, KICKOFF_S,
+  ROSTER_COUNT, PITCH_COUNT, ROUNDS, SCHEDULE, START_BASE, ADMIN_PASSCODE, COLORS, KICKOFF_S, TICKER_ITEMS,
   rosterImg, teamName, groupLetter, championOdds, pitchImg, pitchByN,
   fxTeams, fxMatchId, status, matchClock, canVote, winnerOf, champion, nextFixture, liveFixture, currentFixture,
   tallyMatch, myVoteFor, castShot, resetAllVotes, matchStats, shotReaction, shotKind, teamSub,
@@ -307,6 +307,46 @@ export function ViewHome({ ctx }) {
   );
 }
 
+/* ===== PLAY — the stadium, wired to the timed engine ===== */
+const TROPHY_SVG = (
+  <svg className="trophy" viewBox="0 0 60.98 121.89" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="#b18336" d="M52.02,52.02l-21.51,21.51v17.89h30.47V30.51h-.04c0,7.79-2.98,15.57-8.92,21.51l.04.04-.04-.04h0Z"/><rect fill="#014127" x="30.51" y="91.42" width="30.47" height="30.47"/><path fill="#9b6c2c" d="M30.51,73.57v-.04l-.04.04-21.55-21.55c-1.32-1.32-2.48-2.72-3.51-4.2-.13-.18-.25-.37-.38-.56-.12-.18-.23-.36-.35-.54-.39-.61-.75-1.23-1.08-1.86-.12-.21-.23-.43-.34-.65-.89-1.77-1.61-3.61-2.13-5.49-.62-2.21-.99-4.48-1.1-6.76v59.44h30.47v-17.85Z"/><rect fill="#2b5b48" x=".04" y="91.42" width="30.47" height="30.47"/><path fill="#e3ca86" d="M52.06,8.96s-.02-.03-.04-.04h0c-11.9-11.9-31.19-11.9-43.09,0l21.58,21.58,21.55-21.55Z"/><polygon fill="#a7792b" points="30.51 30.51 30.43 30.51 8.92 52.02 30.47 73.57 30.51 73.53 52.02 52.02 52.02 52.02 52.02 52.02 30.51 30.51 30.51 30.51"/><path fill="#8e6019" d="M1.13,38.73c.53,1.88,1.24,3.72,2.13,5.49.11.22.22.43.34.65.34.63.7,1.25,1.08,1.86.11.18.23.36.35.54.12.19.25.37.38.56,1.03,1.48,2.19,2.88,3.51,4.2l21.51-21.51h.07S8.92,8.93,8.92,8.93h0C2.59,15.26-.37,23.68.04,31.97H.04c.11,2.28.48,4.55,1.1,6.76Z"/><path fill="#472808" d="M30.51,30.51l21.51,21.51c5.94-5.94,8.92-13.72,8.92-21.51,0-7.79-2.95-15.59-8.89-21.55l-21.55,21.55h0Z"/></svg>
+);
+
+const MARKINGS_SVG = (
+  <svg className="markings" viewBox="0 0 16 8" preserveAspectRatio="none" aria-hidden="true">
+    <g fill="none" stroke="var(--line)" strokeWidth="1" strokeOpacity=".92">
+      <line x1="8" y1="0" x2="8" y2="8" />
+      <circle cx="8" cy="4" r="2" />
+      <path d="M0,2 H2 V6 H0" />
+      <path d="M0,3 H-1 V5 H0" />
+      <path d="M2,3 A1 1 0 0 1 2,5" />
+      <path d="M16,2 H14 V6 H16" />
+      <path d="M16,3 H17 V5 H16" />
+      <path d="M14,3 A1 1 0 0 0 14,5" />
+    </g>
+  </svg>
+);
+
+/* distraction-board ticker text (repeated so the marquee is always overfull) */
+function tickerText(reps) {
+  const unit = TICKER_ITEMS.join(' • ') + ' • ';
+  return unit.repeat(reps);
+}
+
+/* Latest broadcast commentary line for the top bar — derived from the live
+   commentary model so it stays consistent with the full feed. */
+function latestCommentaryLine(f, t, mId) {
+  const mc = matchClock(f);
+  const nameA = t.a ? teamName(t.a) : 'Home', nameB = t.b ? teamName(t.b) : 'Away';
+  if (mc.phase === 'up' || mc.phase === 'KO') return 'Teams in the tunnel — kick-off imminent.';
+  if (mc.phase === 'ft') { const w = winnerOf(f.id); return `Full time. ${w ? teamName(w) : '—'} go through.`; }
+  const tl = tallyMatch(mId);
+  if (mc.phase === 'HT') return `Half-time. ${tl.L >= tl.R ? nameA : nameB} edge it on shots.`;
+  if (tl.total === 0) return `Kick-off — ${nameA} vs ${nameB}. Trust your gut.`;
+  const lead = tl.L > tl.R ? nameA : tl.R > tl.L ? nameB : null;
+  return lead ? `${lead} hit the front — a confident shot finds the corner.` : 'Level pegging — end to end stuff.';
+}
+
 export function ViewPlay({ ctx, loginOnMount }) {
   const [, force] = useState(0);
   const rerender = useCallback(() => force((n) => n + 1), []);
@@ -325,9 +365,186 @@ export function ViewPlay({ ctx, loginOnMount }) {
 
   return (
     <div className="match-wrap" key={fxId}>
-      <MatchCenter ctx={ctx} rerender={rerender} />
-      <div style={{ marginTop: 40 }}><SocialStrip ctx={ctx} /></div>
+      <StadiumPlay ctx={ctx} rerender={rerender} />
     </div>
+  );
+}
+
+/* Stadium: broadcast bar + stage (boards/pitch/scoreband) + deck + panels. */
+function StadiumPlay({ ctx, rerender }) {
+  const f = currentFixture();
+
+  // Tournament over → champion block.
+  if (!f) {
+    const ch = champion();
+    return (
+      <>
+        <div className="deck">
+          <div className="champ">
+            <div className="kicker">CHAMPION</div>
+            {ch ? <div className="crest"><img src={rosterImg(ch)} alt="" /></div> : null}
+            <div className="who">{ch ? teamName(ch) : '—'}</div>
+            <div className="meta">WINNER · OPEPEN ART WORLD CUP 2026</div>
+            <a className="btn" href="#/bracket">View the bracket →</a>
+          </div>
+        </div>
+      </>
+    );
+  }
+  return <StadiumMatch key={f.id} ctx={ctx} f={f} rerender={rerender} />;
+}
+
+function StadiumMatch({ ctx, f, rerender }) {
+  const t = fxTeams(f), mId = fxMatchId(f);
+  const openedAt = useRef(Date.now());
+  const mc = matchClock(f);
+  const phase = mc.phase;
+  const pending = !t.a || !t.b;
+  const tl = pending ? { L: 0, R: 0, total: 0 } : tallyMatch(mId);
+  const mv = (!pending && ctx.id) ? myVoteFor(mId, ctx.id) : null;
+  const ft = phase === 'ft';
+  const votingOpen = canVote(f);
+
+  // Winner (FT) → green side + win/lose pick classes.
+  const w = ft && !pending ? (winnerOf(f.id) || (tl.L >= tl.R ? t.a : t.b)) : null;
+  const wonH = w && w === t.a, wonA = w && w === t.b;
+
+  // My-pick highlight during/after voting (mirrors prototype's win/lose glow).
+  const myH = mv && mv.side === 'LFT', myA = mv && mv.side === 'RGT';
+  const pitch = pitchImg(f);
+  const pitchBg = (id, kit) => (id ? `url('${rosterImg(id, kit)}'), url('${pitch}')` : `url('${pitch}')`);
+
+  const cast = (side) => {
+    if (pending) return;
+    if (!votingOpen) {
+      flash(phase === 'HT' ? 'Halftime — voting resumes for the 2nd half' : phase === 'ft' ? 'Full time — voting is closed' : 'Voting opens at kick-off');
+      return;
+    }
+    if (!ctx.id) return requireCheckIn(ctx);
+    const prev = myVoteFor(mId, ctx.id);
+    const decisionMs = Date.now() - openedAt.current;
+    castShot(mId, ctx.id, side, decisionMs);
+    const switched = !!prev && prev.side !== side;
+    toast(shotReaction(decisionMs, teamName(side === 'LFT' ? t.a : t.b), switched));
+    rerender();
+  };
+
+  // pick button classes
+  const hClass = 'pick home' + (ft ? (wonH ? ' win' : ' lose') : (myH ? ' win' : myA ? ' lose' : ''));
+  const aClass = 'pick away' + (ft ? (wonA ? ' win' : ' lose') : (myA ? ' win' : myH ? ' lose' : ''));
+
+  // center board-state overlay
+  let stateOverlay = null;
+  if (pending) {
+    stateOverlay = <div className="board-state"><div className="bs-lbl bs-blend">MATCHUP PENDING</div></div>;
+  } else if (phase === 'up' || phase === 'KO') {
+    const num = phase === 'KO' ? mc.remain : Math.max(0, Math.ceil((f.kickoff - Date.now()) / 1000));
+    stateOverlay = <div className="board-state"><div className="bs-lbl bs-blend">KICKOFF IN</div><div className="bs-big bs-blend"><AnimatedNumber value={num} suffix="S" /></div></div>;
+  } else if (phase === 'HT') {
+    stateOverlay = <div className="board-state"><div className="bs-lbl bs-blend">HALFTIME</div><div className="bs-big bs-blend"><AnimatedNumber value={mc.remain} suffix="S" /></div></div>;
+  } else if (phase === '1H' || phase === '2H') {
+    stateOverlay = <div className="board-state"><div className="bs-big bs-blend"><AnimatedNumber value={mc.up} suffix="S" /></div></div>;
+  }
+  // FT confetti sits inside the pitch
+  const ftExtra = ft ? <Confetti seed={f.id} /> : null;
+
+  // deck progress: matches finished so far across the schedule
+  const total = SCHEDULE.length;
+  const done = SCHEDULE.filter((fx) => status(fx) === 'ft').length;
+  const curIdx = SCHEDULE.findIndex((fx) => fx.id === f.id);
+  const roundMatches = SCHEDULE.filter((fx) => fx.rk === f.rk);
+  const matchNo = roundMatches.findIndex((fx) => fx.id === f.id) + 1;
+
+  const scoreBug = pending ? '— 0–0 —' : `${teamName(t.a)}  ${tl.L}–${tl.R}  ${teamName(t.b)}`;
+  const commLine = pending ? 'Waiting on the previous round to finish.' : latestCommentaryLine(f, t, mId);
+
+  return (
+    <>
+      {/* broadcast bar */}
+      <div className="broadcast">
+        <span className="bc-clock">{mc.txt}</span>
+        <span className="bc-comm">{commLine}</span>
+        <span className="bc-score">{scoreBug}</span>
+      </div>
+
+      {/* stage */}
+      <div className="stage" id="stage" role="group" aria-label="Match pitch and scoreboard">
+        <div className="stadium">
+          <div className="board t"><div className="ticker">{tickerText(6)}</div></div>
+          <div className="board b"><div className="ticker">{tickerText(6)}</div></div>
+          <div className="board l"><div className="vstrip">{tickerText(4)}</div></div>
+          <div className="board r"><div className="vstrip">{tickerText(4)}</div></div>
+
+          <div className="pitch">
+            <div className="half home" style={{ backgroundImage: pitchBg(t.a, 'home') }} />
+            <div className="half away" style={{ backgroundImage: pitchBg(t.b, 'away') }} />
+            {MARKINGS_SVG}
+            <div className="picks">
+              <button className={hClass} disabled={pending || ft} aria-label="Pick the home side" onClick={() => cast('LFT')}><span className="glow" /></button>
+              <button className={aClass} disabled={pending || ft} aria-label="Pick the away side" onClick={() => cast('RGT')}><span className="glow" /></button>
+            </div>
+            {stateOverlay}
+            {ftExtra}
+          </div>
+        </div>
+
+        <div className={'scoreband' + (wonH ? ' won-h' : wonA ? ' won-a' : '')}>
+          <div className="sidebg h" /><div className="sidebg a" />
+          <span className="lab h">{pending ? 'Home' : teamName(t.a)}</span>
+          <span className="num h"><AnimatedNumber value={tl.L} /></span>
+          {TROPHY_SVG}
+          <span className="num a"><AnimatedNumber value={tl.R} /></span>
+          <span className="lab a">{pending ? 'Away' : teamName(t.b)}</span>
+        </div>
+        <div className="makepick">{ft ? 'FULL TIME' : votingOpen ? 'MAKE YOUR PICK' : phase === 'HT' ? 'HALFTIME' : 'KICK-OFF SOON'}</div>
+      </div>
+
+      {/* control deck */}
+      <div className="deck">
+        <div className="deckrow">
+          <div className="round">{roundDisp(f)} · <b>Match {String(matchNo).padStart(2, '0')} / {String(roundMatches.length).padStart(2, '0')}</b></div>
+          <div className="counter">{pending ? 'TBD vs TBD' : `${teamName(t.a)} vs ${teamName(t.b)}`}</div>
+        </div>
+        <div className="progress-bar"><i style={{ width: (done / total * 100) + '%' }} /></div>
+        <div className="deckrow">
+          <div className="bars">
+            {SCHEDULE.map((fx, i) => {
+              const s = status(fx);
+              return <span key={fx.id} className={s === 'ft' ? 'done' : (i === curIdx ? 'cur' : '')} />;
+            })}
+          </div>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <span className="hint">Matches run 90s · vote during play</span>
+            {!ctx.id && <button className="btn" onClick={() => ctx.login()}>Check in</button>}
+            <a className="btn" href="#/bracket">Bracket</a>
+          </div>
+        </div>
+      </div>
+
+      {/* kickoff-only wager CTA */}
+      {(phase === 'up' || phase === 'KO') && !pending && (
+        <>
+          <button className="wager-cta" onClick={() => { if (!ctx.id) return requireCheckIn(ctx); openWager(ctx, f, rerender); }}>Wager TP on this match →</button>
+          <p className="wager-note">Taste Points (TP) is the game critique currency. TP has no monetary value.</p>
+        </>
+      )}
+
+      {/* commentary feed + live chat panels */}
+      {!pending && (
+        <div className="play-panels">
+          <div className="panel-dark">
+            <div className="panel-h">Live Commentary</div>
+            <CommentaryPane f={f} t={t} mId={mId} />
+          </div>
+          <div className="panel-dark">
+            <div className="panel-h">Match Critique</div>
+            <MatchChat ctx={ctx} mId={mId} heightPx={320} />
+          </div>
+        </div>
+      )}
+
+      <div style={{ marginTop: 40, width: '100%', display: 'flex', justifyContent: 'center' }}><SocialStrip ctx={ctx} /></div>
+    </>
   );
 }
 
@@ -1272,86 +1489,65 @@ function WagerModal({ ctx, f, rerender }) {
   );
 }
 
-/* ===== TEAMS ===== */
-export function ViewTeams({ ctx }) {
+/* ===== TEAMS (prototype grid + home/away modal) ===== */
+function TeamModal({ id }) {
+  const [kind, setKind] = useState('home');
   return (
-    <>
-      <h1 className="page-title">The Field</h1>
-      <p className="page-sub">40 artworks enter — tap a card</p>
+    <div className="tm-card" onClick={(e) => e.stopPropagation()}>
+      <button className="tm-x" aria-label="Close" onClick={closeModal}>×</button>
+      <div className="tm-crest" style={{ backgroundImage: `url('${pitchByN(1)}')` }}>
+        <img src={rosterImg(id, kind)} alt={teamName(id)} />
+      </div>
+      <div className="tm-name">{teamName(id)}</div>
+      <div className="tm-kind">{kind === 'home' ? 'Home' : 'Away'} kit</div>
+      <div className="tm-sub">Group {groupLetter(id)} · #{id} · {championOdds(id)}× champion odds</div>
+      <div className="tm-toggle">
+        <button className={kind === 'home' ? 'on' : ''} onClick={() => setKind('home')}>Home</button>
+        <button className={kind === 'away' ? 'on' : ''} onClick={() => setKind('away')}>Away</button>
+      </div>
+    </div>
+  );
+}
+function openTeam(id) { openModal(<TeamModal id={id} />); }
+
+export function ViewTeams() {
+  return (
+    <div className="page">
+      <div className="pagehead wrap"><h2>The Field</h2><p>40 artworks. Tap any side to see its home and away kit.</p></div>
       <div className="teams-grid">
         {Array.from({ length: ROSTER_COUNT }, (_, k) => k + 1).map((i) => (
-          <div className="tcard" key={i} onClick={() => openTeamCard(ctx, i)}>
-            <img src={rosterImg(i)} alt="" />
-            <div className="nm">{teamName(i)}</div>
-            <div className="meta"><span>Grp {groupLetter(i)} · #{i}</span><span className="odds">{championOdds(i)}×</span></div>
-          </div>
+          <button className="teamcard" key={i} onClick={() => openTeam(i)}>
+            <div className="cwrap"><img src={rosterImg(i, 'home')} alt="" loading="lazy" /></div>
+            <div className="tclbl">{teamName(i)}</div>
+          </button>
         ))}
       </div>
-    </>
+    </div>
   );
 }
 
-/* ===== KITS VIEWER (#/kits) — Home/Away + pitch gallery ===== */
-function kitsPitchUrl(n) { return pitchByN(n); }
+/* ===== KITS — every home + away strip (prototype grid) ===== */
 export function ViewKits() {
-  const [team, setTeam] = useState(1);            // 1..ROSTER_COUNT
-  const [kit, setKit] = useState('home');         // 'home' | 'away'
-  const [pitch, setPitch] = useState(1);          // 1..PITCH_COUNT
-  const pitchUrl = kitsPitchUrl(pitch);
-  const teams = Array.from({ length: ROSTER_COUNT }, (_, k) => k + 1);
-  const pitches = Array.from({ length: PITCH_COUNT }, (_, k) => k + 1);
+  const pitch = pitchByN(1);
   return (
-    <>
-      <h1 className="page-title">Kits</h1>
-      <p className="page-sub">40 teams · 2 kits · 5 pitches</p>
-
-      <div className="kits-controls">
-        <div className="kits-ctl">
-          <span className="kits-lab">Kit</span>
-          <div className="kits-seg" role="tablist" aria-label="Kit type">
-            <button className={kit === 'home' ? 'on' : ''} role="tab" aria-selected={kit === 'home'} onClick={() => setKit('home')}>Home</button>
-            <button className={kit === 'away' ? 'on' : ''} role="tab" aria-selected={kit === 'away'} onClick={() => setKit('away')}>Away</button>
+    <div className="page">
+      <div className="pagehead wrap"><h2>Kits</h2><p>Every home and away strip in the tournament.</p></div>
+      <div className="kits-grid">
+        {Array.from({ length: ROSTER_COUNT }, (_, k) => k + 1).map((i) => (
+          <div className="kitcell" key={i}>
+            <div className="kitlbl">{teamName(i)}</div>
+            <div className="kitpair">
+              {['home', 'away'].map((kind) => (
+                <div className="kit" key={kind}>
+                  <div className="cwrap" style={{ backgroundImage: `url('${pitch}')` }}><img src={rosterImg(i, kind)} alt="" loading="lazy" /></div>
+                  <span>{kind.toUpperCase()}</span>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
-        <div className="kits-ctl">
-          <span className="kits-lab">Pitch</span>
-          <div className="kits-pitches" role="radiogroup" aria-label="Pitch background">
-            {pitches.map((n) => (
-              <button key={n} role="radio" aria-checked={pitch === n}
-                className={'kits-pitch' + (pitch === n ? ' active' : '')}
-                style={{ backgroundImage: `url('${kitsPitchUrl(n)}')` }}
-                onClick={() => setPitch(n)} aria-label={`Pitch ${n}`} />
-            ))}
-          </div>
-        </div>
+        ))}
       </div>
-
-      <div className="kits-piece">
-        <div className="kits-frame" style={{ backgroundImage: `url('${pitchUrl}')` }}>
-          <img className="kits-hero" src={rosterImg(team, kit)} alt={teamName(team)} />
-        </div>
-        <div className="kits-railwrap">
-          <div className="kits-rail" role="listbox" aria-label="Teams">
-            {teams.map((i) => (
-              <button key={i} role="option" aria-selected={team === i}
-                className={'kits-thumb' + (team === i ? ' active' : '')}
-                style={{ backgroundImage: `url('${pitchUrl}')` }}
-                onClick={() => setTeam(i)} aria-label={teamName(i)}>
-                <img src={rosterImg(i, kit)} alt="" loading="lazy" />
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="kits-placard">
-        <div>
-          <p className="kits-name">{teamName(team)}</p>
-          <p className="kits-meta">{kit.toUpperCase()} KIT · TEAM {String(team).padStart(2, '0')} / {ROSTER_COUNT}</p>
-        </div>
-        <p className="kits-hint">Toggle <b>kit</b>, pick a <b>pitch</b> + <b>team</b> · transparent cells reveal the pitch</p>
-      </div>
-    </>
+    </div>
   );
 }
 
@@ -1378,49 +1574,71 @@ function shareWithEarn(ctx, text) {
   shareOnX(text, () => { if (ctx.id) { if (earnShare()) ctx.rerender(); } });
 }
 
-/* ===== BRACKET ===== */
+/* ===== BRACKET (prototype live columns) ===== */
+function BracketTeam({ id, votes, cls, onClick, live }) {
+  return (
+    <button className={'bteam' + (cls ? ' ' + cls : '')} onClick={onClick}>
+      {id ? <img className="bcrest" src={rosterImg(id, 'home')} alt="" /> : <span className="bcrest" style={{ display: 'inline-block', opacity: .3 }} />}
+      <span className="bid">{id ? teamName(id) : 'TBD'}</span>
+      {votes != null && <span className="bv">{votes}</span>}
+      {live && <span className="bst live">LIVE</span>}
+    </button>
+  );
+}
+
 export function ViewBracket({ ctx }) {
   const [, force] = useState(0);
   const rerender = () => force((n) => n + 1);
   useEffect(() => { resolveWagers(); }, []);
-  // Per-second tick so the circular bracket's live ring stays current.
   useEffect(() => { const iv = setInterval(() => force((n) => n + 1), 1000); return () => clearInterval(iv); }, []);
-  const picks = getPicks();
+  const liveId = (liveFixture() || {}).id;
+  const ch = champion();
+
   return (
-    <>
-      <h1 className="page-title">Bracket &amp; Schedule</h1>
-      <p className="page-sub">Tap a fixture to predict the winner · {predictionCount()} picks made</p>
-      <div className="cb-page-wrap"><CircularBracket /></div>
-      <div className="center" style={{ marginBottom: 18 }}>
-        <button className="btn-x" style={{ display: 'inline-flex' }} onClick={() => {
+    <div className="page">
+      <div className="pagehead wrap"><h2>Bracket</h2><p>The live road to the Cup — winners lock at full time each match.</p></div>
+      <div className="center" style={{ marginBottom: 16 }}>
+        <button className="btn-x" onClick={() => {
           shareWithEarn(ctx, `I filled out my Opepen World Cup bracket 🏆 ${predictedChampion() ? 'Champion: ' + teamName(predictedChampion()) : ''} Predict yours:`);
           if (ctx.id && earnOnce('postedBracket', 500, 'Posted bracket')) toast('+500 TP — bracket shared!');
         }}><XLogo /> Share my bracket (+TP)</button>
       </div>
-      <div>
-        {ROUNDS.map((R) => (
-          <React.Fragment key={R.key}>
-            <div className="round-head"><h2>{R.name}</h2><span className="adv">{R.adv}</span></div>
-            {SCHEDULE.filter((f) => f.rk === R.key).map((f) => {
-              const t = fxTeams(f), st = status(f), win = winnerOf(f.id), pick = picks[f.id];
-              return (
-                <div className={'fx' + (st === 'ft' ? ' fx-ft' : '')} key={f.id} onClick={() => {
-                  openMatchDetail(ctx, f, rerender);
-                }}>
-                  <img src={t.a ? rosterImg(t.a) : rosterImg(1)} alt="" style={{ opacity: t.a ? 1 : 0.15 }} />
-                  <span className={'nm' + (win === t.a ? ' win' : '')}>{t.a ? teamName(t.a) : 'TBD'}</span><span className="vs">v</span>
-                  <img src={t.b ? rosterImg(t.b) : rosterImg(1)} alt="" style={{ opacity: t.b ? 1 : 0.15 }} />
-                  <span className={'nm' + (win === t.b ? ' win' : '')}>{t.b ? teamName(t.b) : 'TBD'}</span>
-                  <span className="time">{fmtDay(f.kickoff)}<br />{fmtTime(f.kickoff)}</span>
-                  <span className={'st ' + st}>{st === 'live' ? 'LIVE' : st === 'ft' ? 'FT' : '·'}</span>
-                  {pick && <span className="st" style={{ borderColor: 'var(--gold)', color: 'var(--gold)' }}>★{pick === t.a ? 'L' : 'R'}</span>}
-                </div>
-              );
-            })}
-          </React.Fragment>
-        ))}
+      <div className="bracket-scroll">
+        <div className="bracket-cols">
+          {ROUNDS.map((R) => {
+            const fxs = SCHEDULE.filter((f) => f.rk === R.key);
+            return (
+              <div className="bcol" key={R.key}>
+                <div className="bchead">{R.name}</div>
+                {fxs.map((f) => {
+                  const t = fxTeams(f), st = status(f), win = winnerOf(f.id);
+                  const tl = (t.a && t.b) ? tallyMatch(fxMatchId(f)) : { L: null, R: null };
+                  const aWin = win === t.a, bWin = win === t.b;
+                  const isLive = f.id === liveId;
+                  if (R.key === 'r6' && ch) {
+                    return (
+                      <div className="bmatch" key={f.id}>
+                        <BracketTeam id={ch} votes={null} cls="champ" onClick={() => openTeam(ch)} />
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="bmatch" key={f.id}>
+                      <BracketTeam id={t.a} votes={tl.L} live={isLive}
+                        cls={st === 'ft' ? (aWin ? 'win' : 'lose') : ''}
+                        onClick={() => t.a && openMatchDetail(ctx, f, rerender)} />
+                      <BracketTeam id={t.b} votes={tl.R}
+                        cls={st === 'ft' ? (bWin ? 'win' : 'lose') : ''}
+                        onClick={() => t.b && openMatchDetail(ctx, f, rerender)} />
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
       </div>
-    </>
+    </div>
   );
 }
 /* Bracket match-detail modal: artworks + nicknames, score/winner (FT) with the
