@@ -53,21 +53,12 @@ export function pitchByN(n) {
   return (_svgCache[key] = gridSVG(P.palette, P.grids[(n - 1) % P.grids.length], false));
 }
 export function pitchImg(f) { return pitchByN((fixtureIndex(f) % PITCH_COUNT) + 1); }
-export const TEAM_NAMES = {
-  1: 'The Crimson Set', 2: 'Cobalt City', 3: 'The Checkers', 4: 'Halftone United',
-  5: 'The Negatives', 6: 'Pigment FC', 7: 'The Editions', 8: 'Monotype Rovers',
-  9: 'The Glyphs', 10: 'Consensus FC', 11: 'The Vermillions', 12: 'Grid City',
-  13: 'The Plates', 14: 'Inkwell United', 15: 'The Mints', 16: 'Bitmap Athletic',
-  17: 'The Frames', 18: 'Vector Wanderers', 19: 'The Renders', 20: 'Pixel Albion',
-  21: 'The Burnt', 22: 'Provenance FC', 23: 'The Squares', 24: 'Cyan Rovers',
-  25: 'The Optimists', 26: 'Reveal United', 27: 'The Pales', 28: 'Gradient City',
-  29: 'The Opted-In', 30: 'Stencil FC', 31: 'The Saturated', 32: 'Aperture United',
-  33: 'The Tessellates', 34: 'Marble Rovers', 35: 'The Embers', 36: 'Contrast City',
-  37: 'The Primaries', 38: 'Woodcut United', 39: 'The Latent', 40: 'Set Forty FC',
-};
-export function teamName(id) { return TEAM_NAMES[id] || ('Opepen #' + id); }
-/* numeric id as a small secondary label, e.g. "The Embers · #35" */
-export function teamSub(id) { return TEAM_NAMES[id] ? ('#' + id) : ''; }
+/* Teams are identified purely by number. Internal ids run 1..40 and map to the
+   40 kit SVGs (grids[id-1]); the displayed number is that SVG's token id, id+40,
+   i.e. #41..#80. No names. */
+export const TEAM_NAMES = {};
+export function teamName(id) { return id ? ('#' + (id + 40)) : ''; }
+export function teamSub(id) { return ''; }
 export function groupLetter(id) { return 'ABCDEFGHIJ'[Math.floor((id - 1) / 4)]; }
 export function championOdds(id) { return +(1 + id / 2.2).toFixed(1); }
 

@@ -436,8 +436,7 @@ function PitchField({ aId, bId, zones, state, extra, votedSide, votedSeed, pitch
    + signboard edit button. The play area sits inside the marquee frame. */
 function Board({ children, phaseClass, matchId, onEdit }) {
   return (
-    /* id="stage" anchors the page background grid to this board (GridFX.jsx) */
-    <div className="board" id="stage">
+    <div className="board">
       {/* marquee frame — rendered BELOW the play area (lower z-index) */}
       <Marquee edge="top" matchId={matchId} />
       <Marquee edge="bottom" matchId={matchId} />
@@ -1286,7 +1285,7 @@ export function ViewTeams({ ctx }) {
           <div className="tcard" key={i} onClick={() => openTeamCard(ctx, i)}>
             <img src={rosterImg(i)} alt="" />
             <div className="nm">{teamName(i)}</div>
-            <div className="meta"><span>Grp {groupLetter(i)} · #{i}</span><span className="odds">{championOdds(i)}×</span></div>
+            <div className="meta"><span>Grp {groupLetter(i)}</span><span className="odds">{championOdds(i)}×</span></div>
           </div>
         ))}
       </div>
@@ -1366,7 +1365,7 @@ function openTeamCard(ctx, id) {
       <button className="close" onClick={closeModal}>×</button>
       <img src={rosterImg(id)} alt="" style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', border: '1px solid #1a1a1a', marginBottom: 14 }} />
       <h2>{teamName(id)}</h2>
-      <p className="lead">Group {groupLetter(id)} · Seed #{id}</p>
+      <p className="lead">Group {groupLetter(id)}</p>
       <div style={{ display: 'flex', gap: 18, fontFamily: 'var(--mono)', fontSize: 13, marginBottom: 16 }}>
         <div><div style={{ color: 'var(--muted)' }}>Champion odds</div><div style={{ color: 'var(--gold)', fontSize: 18 }}>{championOdds(id)}×</div></div>
         <div><div style={{ color: 'var(--muted)' }}>Record</div><div style={{ fontSize: 18 }}>{w}–{l}</div></div>
