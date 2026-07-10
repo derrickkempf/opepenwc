@@ -3,9 +3,10 @@ import { useAuth } from './auth.jsx';
 import { LogoSvg } from './components/svg.jsx';
 import { deriveIdentity } from './lib/identity.js';
 import { hydrate, subscribeRealtime, SHARED } from './lib/storage.js';
-import { nFmt, tp, myName } from './lib/game.js';
+import { nFmt, tp, myName, countRefVisit } from './lib/game.js';
+import Splash from './components/Splash.jsx';
 import {
-  ViewHome, ViewPlay, ViewTeams, ViewKits, ViewBracket, ViewStandings, ViewEarn,
+  ViewHome, ViewPlay, ViewDemo, ViewTeams, ViewKits, ViewBracket, ViewStandings, ViewEarn,
   ViewBanter, ViewProfile, ViewRules, ViewAbout, ViewSponsor,
   ViewTerms, ViewPrivacy, ViewAdmin, ModalRoot, Toast, Flash,
 } from './views.jsx';
@@ -22,7 +23,7 @@ function useHash() {
 
 /* ===== right-side drawer menu (from prototype) ===== */
 const MENU_LINKS = [
-  ['#/play', 'Play'], ['#/teams', 'Teams'], ['#/kits', 'Kits'], ['#/bracket', 'Bracket'],
+  ['#/play', 'Play'], ['#/demo', 'Demo'], ['#/teams', 'Teams'], ['#/kits', 'Kits'], ['#/bracket', 'Bracket'],
   ['#/standings', 'Standings'], ['#/earn', 'Earn'], ['#/rules', 'Rules'],
 ];
 function MenuDrawer({ open, onClose, ctx }) {
@@ -65,11 +66,15 @@ export default function App() {
   // Close the drawer on navigation.
   useEffect(() => { setMenuOpen(false); }, [route]);
 
-  // Hydrate + realtime once.
+  // Hydrate + realtime once. After hydrate, a ?ref= visit counts toward joins.
   useEffect(() => {
     let mounted = true;
     (async () => {
       if (SHARED) { try { await hydrate(); subscribeRealtime(() => { if (mounted) rerender(); }); } catch (e) { console.warn(e); } }
+      try {
+        const ref = new URLSearchParams(location.search).get('ref');
+        if (ref) countRefVisit(ref);
+      } catch (e) { /* noop */ }
       if (mounted) rerender();
     })();
     console.info('[OWC] data mode:', SHARED ? 'shared (Supabase)' : 'local-only');
@@ -89,6 +94,7 @@ export default function App() {
   let view;
   if (r === '#/' || r === '') view = <ViewHome ctx={ctx} />;
   else if (r.startsWith('#/play')) view = <ViewPlay ctx={ctx} />;
+  else if (r.startsWith('#/demo')) view = <ViewDemo ctx={ctx} />;
   else if (r.startsWith('#/login')) view = <ViewPlay ctx={ctx} loginOnMount />;
   else if (r.startsWith('#/teams')) view = <ViewTeams ctx={ctx} />;
   else if (r.startsWith('#/kits')) view = <ViewKits />;
@@ -107,6 +113,7 @@ export default function App() {
 
   return (
     <div className={isPlay ? 'route-play' : (isHome ? 'route-home' : '')}>
+      <Splash />
       <header>
         <div className="hdr-wordmark">2026 Opepen<br />Art World Cup</div>
         <a className="hdr-logo" href="#/" title="Opepen World Cup"><LogoSvg /></a>

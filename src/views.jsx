@@ -11,6 +11,8 @@ import {
   getProfile, setProfile, allPlayers, myName, myColor,
   postChat, getChat, postComment, getComments,
   nFmt, ago, fmtDay, fmtTime, shareOnX, getVotes as getVotesFor,
+  JOIN_GOAL, joinCount, hasJoined, joinCup, launchPhase, preKickoffLeftMs, isForceLive,
+  refCode, refLink, earnShareTP, fmtHMS, isOwner,
 } from './lib/game.js';
 
 const DAY = 86400000;
@@ -237,21 +239,52 @@ function HomeMatches() {
   );
 }
 
+/* Full-bleed horizontally-scrolling marquee of all 40 team kits, edge-faded,
+   seamless loop (tiles duplicated). rosterImg(i) art with #41..#80 labels.
+   Ported from the mini's .kit-marquee / .kit-track. */
+function TeamMarquee() {
+  const tiles = Array.from({ length: ROSTER_COUNT }, (_, i) => i + 1);
+  const Tile = ({ id, k }) => (
+    <div className="kit-tile" key={k}>
+      <img src={rosterImg(id)} alt={teamName(id)} loading="lazy" />
+      <span className="kt-n">{teamName(id)}</span>
+    </div>
+  );
+  return (
+    <div className="kit-marquee" aria-hidden="true">
+      <div className="kit-track">
+        {tiles.map((id) => <Tile id={id} k={'a' + id} />)}
+        {tiles.map((id) => <Tile id={id} k={'b' + id} />)}
+      </div>
+    </div>
+  );
+}
+
 export function ViewHome({ ctx }) {
   // Every CTA routes to the live/latest match (#/play renders currentFixture).
   // Fire lazy login too, but always end up on the current match.
   const go = () => { ctx.login(); location.hash = '#/play'; };
   const steps = [
-    ['Two artworks appear', 'Each match runs 90 seconds. Two 45-second halves with a 30 second halftime. You vote for the one you prefer.'],
-    ['Speed shapes the shot', 'An instant choice lands center goal; a slow choice drifts wide, or misses completely. Changing your mind could cause an own goal.'],
-    ['The strongest instinct wins', 'The artwork that earns the fastest, most confident votes accumulates the most goals and advances. Only one will become a 1/1.'],
+    ['Two artworks appear', 'Pick the one that pulls you in. You have 90 seconds before the match closes.'],
+    ['Your vote becomes a shot on goal', 'Vote fast and your shot lands in the center. Hesitate and it drifts wide — change your mind too often and it turns into an own goal.'],
+    ['The instinctive choice advances', '40 artworks enter. Round by round, one lifts the Cup.'],
   ];
   return (
     <div className="home-landing">
-      {/* HERO */}
+      {/* HERO — lockup from the mini */}
       <FadeSection className="hl-hero">
-        <h1 className="hl-h1">2026 Opepen Art World Cup</h1>
-        <p className="hl-sub">A knockout tournament for 40 artworks where instinct is the scoring system.</p>
+        <h1 className="hl-h1">Your Gut Knows. Now Prove It.</h1>
+        <p className="hl-sub">40 artworks. 90-second matches. The artwork people love fastest wins. No critics. No algorithms.</p>
+        <div className="hl-hero-cta" style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap', marginTop: 14 }}>
+          <button className="home-cta" onClick={go}>Enter the Tournament →</button>
+          <a className="btn" href="#/demo">Try the demo</a>
+        </div>
+      </FadeSection>
+
+      {/* PROBLEM — decided by your nervous system */}
+      <FadeSection className="hl-block">
+        <h2 className="hl-h2">Every art ranking you’ve ever seen was decided by critics, committees, or clicks.</h2>
+        <p className="hl-sub">This one is decided by your nervous system.</p>
       </FadeSection>
 
       {/* CURRENT + NEXT MATCH (item 8) */}
@@ -273,6 +306,9 @@ export function ViewHome({ ctx }) {
         <h2 className="hl-h2">Popularity polls reward patience. This rewards speed.</h2>
         <p className="hl-sub">Hesitation isn't neutrality … it's a miss. Your first reaction is your real opinion.</p>
       </FadeSection>
+
+      {/* TEAM MARQUEE — full-bleed scroll of all 40 kits, above How It Works */}
+      <TeamMarquee />
 
       {/* HOW IT WORKS — sticky split-screen */}
       <FadeSection className="hl-block hl-hiw">
@@ -314,11 +350,23 @@ export function ViewPlay({ ctx, loginOnMount }) {
   useEffect(() => { if (loginOnMount && !ctx.id) ctx.login(); }, [loginOnMount]); // eslint-disable-line
   useEffect(() => { resolveWagers(); }, []);
 
-  // Single per-second tick drives the live match (clock/score/% only).
+  // Single per-second tick drives the live match + gate countdown.
   useEffect(() => {
     const iv = setInterval(() => rerender(), 1000);
     return () => clearInterval(iv);
   }, [rerender]);
+
+  // LAUNCH GATE: the real Play page is locked until 80 join, then a 24h
+  // countdown. ?forcelive=1 overrides. Below 80 → locked panel; during 24h →
+  // pre-kickoff countdown.
+  const phase = launchPhase();
+  if (phase !== 'live') {
+    return (
+      <div className="match-wrap">
+        <LaunchGate ctx={ctx} phase={phase} rerender={rerender} />
+      </div>
+    );
+  }
 
   const f = currentFixture();
   const fxId = f ? f.id : 'none';
@@ -327,6 +375,192 @@ export function ViewPlay({ ctx, loginOnMount }) {
     <div className="match-wrap" key={fxId}>
       <MatchCenter ctx={ctx} rerender={rerender} />
       <div style={{ marginTop: 40 }}><SocialStrip ctx={ctx} /></div>
+    </div>
+  );
+}
+
+/* ===== LAUNCH GATE (locked until 80 join → 24h countdown) =====
+   Shared join count + launch timestamp via Supabase. One join per Privy user.
+   Verify-to-join: Join requires Privy auth (ctx.login()). Browsing + Demo stay
+   open to guests. Includes share-to-earn (per-user code + X intent + copy). */
+export function LaunchGate({ ctx, phase, rerender }) {
+  const [, force] = useState(0);
+  const local = () => { force((n) => n + 1); rerender && rerender(); };
+  const n = joinCount();
+  const pct = Math.min(100, Math.round(n / JOIN_GOAL * 100));
+  const joined = hasJoined(ctx.id);
+  const pre = phase === 'pre';
+  const leftMs = pre ? preKickoffLeftMs() : 0;
+
+  const join = () => {
+    if (!ctx.id) { ctx.login(); return; }   // verify-to-join via Privy
+    if (joinCup(ctx.id)) { toast("You're in — share to bring the crowd"); }
+    local();
+  };
+
+  return (
+    <div className="playgate">
+      <div className="pg-inner">
+        <div className="pg-eyebrow">{pre ? 'Kickoff imminent' : 'Not kicked off yet'}</div>
+        <h2 className="pg-head">{pre ? 'The whistle is about to blow' : 'The Cup kicks off once 80 join'}</h2>
+        {pre && (
+          <div className="pg-pre">
+            <div className="cd-lbl">First match kicks off in</div>
+            <div className="cd-clock">{fmtHMS(leftMs)}</div>
+          </div>
+        )}
+        <div className="join-row" style={{ marginTop: 18 }}>
+          <div className="join-count"><span id="join-n3">{n}</span> <span className="join-sub">/ {JOIN_GOAL} joined</span></div>
+          <div className="join-bar"><i style={{ width: pct + '%' }} /></div>
+        </div>
+        <div className="launch-cta" style={{ justifyContent: 'center', marginTop: 16 }}>
+          <button className="home-cta" onClick={join}>{joined ? 'You’re in — share to boost' : 'Join the Cup'}</button>
+          <a className="btn" href="#/demo" style={{ alignSelf: 'center' }}>Try the demo</a>
+        </div>
+        <SharePanel ctx={ctx} onChange={local} />
+      </div>
+    </div>
+  );
+}
+
+/* Share-to-earn: stable per-user code, X intent + copy link with ?ref=CODE,
+   awards Taste Points once/day for sharing (earnShareTP pool). */
+export function SharePanel({ ctx, onChange }) {
+  const [note, setNote] = useState('');
+  const code = refCode();
+  const link = refLink(code);
+  const flash2 = (m) => { setNote(m); setTimeout(() => setNote(''), 2600); };
+  const tweet = () => {
+    const before = tp().bal;
+    shareOnX("I'm in the Opepen Art World Cup — join and help kick off the tournament 🏆 " + link, () => earnShareTP());
+    setTimeout(() => { flash2(tp().bal > before ? '+100 TP — thanks for sharing!' : 'Shared — thanks!'); onChange && onChange(); }, 300);
+  };
+  const copy = () => {
+    try {
+      navigator.clipboard.writeText(link).then(() => flash2('Invite link copied'), () => flash2('Copy failed — ' + link));
+    } catch { flash2(link); }
+  };
+  return (
+    <div className="share-panel">
+      <div className="sb-lbl" style={{ textAlign: 'center', marginTop: 18 }}>Your invite code</div>
+      <div className="sh-code">{code}</div>
+      <div className="sb-row" style={{ maxWidth: 360, margin: '0 auto' }}>
+        <button className="sb-btn sb-save" onClick={tweet}>Share on X</button>
+        <button className="sb-btn" onClick={copy}>Copy link</button>
+      </div>
+      <div className="sh-note" style={{ textAlign: 'center' }}>{note}</div>
+    </div>
+  );
+}
+
+/* ===== DEMO — a self-contained sample match, always available regardless of
+   the gate. Demonstrates the vote→shot mechanic and pushes toward 80 joins. ===== */
+export function ViewDemo({ ctx }) {
+  const [, force] = useState(0);
+  const rerender = () => force((n) => n + 1);
+  const seedRef = useRef(Math.floor(Math.random() * 1e6));
+  const openedAt = useRef(Date.now());
+  // pick two distinct roster ids deterministically from the seed
+  const pair = React.useMemo(() => {
+    const s = seedRef.current;
+    const a = (s % ROSTER_COUNT) + 1;
+    let b = ((s * 7 + 13) % ROSTER_COUNT) + 1;
+    if (b === a) b = (b % ROSTER_COUNT) + 1;
+    return [a, b];
+  }, [seedRef.current]); // eslint-disable-line
+  const [aId, bId] = pair;
+  const [picked, setPicked] = useState(null);   // 'h' | 'a'
+  const [changes, setChanges] = useState(0);
+  const [shot, setShot] = useState(null);        // {side,x,y,own}
+  const [score, setScore] = useState({ h: 0, a: 0 });
+  const [comm, setComm] = useState('Tap a side to cast your vote.');
+  const [done, setDone] = useState(false);
+
+  const place = (side, ms, chg) => {
+    // deterministic-ish placement mirroring the mini's shotPlacement
+    const bucket = ms < 3000 ? 'fast' : ms < 10000 ? 'med' : 'slow';
+    const own = chg > 2;
+    let h = 2166136261 >>> 0; const str = side + '|' + bucket + '|' + chg + '|' + seedRef.current;
+    for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } h = h >>> 0;
+    const j1 = ((h & 0xff) / 255) - 0.5, j2 = (((h >> 8) & 0xff) / 255) - 0.5;
+    const goalX = side === 'h' ? 0.10 : 0.90, centreX = side === 'h' ? 0.30 : 0.70;
+    let x, y, spread;
+    if (bucket === 'fast') { x = goalX + (centreX - goalX) * 0.15; spread = 0.06; }
+    else if (bucket === 'med') { x = goalX + (centreX - goalX) * 0.45; spread = 0.16; }
+    else { x = goalX + (centreX - goalX) * 0.85; spread = 0.30; }
+    y = 0.5 + j1 * spread * 2; x = x + j2 * spread;
+    const nudge = Math.min(chg, 2) * 0.12;
+    y = 0.5 + (y - 0.5) * (1 + nudge); x = x + (side === 'h' ? -nudge * 0.35 : nudge * 0.35);
+    if (own) { x = side === 'h' ? 0.04 : 0.96; y = 0.5 + j1 * 0.18; }
+    x = Math.max(0.05, Math.min(0.95, x)); y = Math.max(0.12, Math.min(0.88, y));
+    return { side, x, y, own };
+  };
+
+  const vote = (side) => {
+    if (done) return;
+    const ms = Date.now() - openedAt.current;
+    const switched = picked && picked !== side;
+    const chg = switched ? changes + 1 : changes;
+    setChanges(chg);
+    setPicked(side);
+    const p = place(side, ms, chg);
+    setShot(p);
+    const nm = side === 'h' ? teamName(aId) : teamName(bId);
+    const other = side === 'h' ? teamName(bId) : teamName(aId);
+    const secs = ms / 1000;
+    // score the demo: fast strike counts big; own goal flips to opponent
+    const scored = { h: 0, a: 0 };
+    if (p.own) { scored[side === 'h' ? 'a' : 'h'] += 1; setComm(<><b>Own goal!</b> {nm} changed their mind once too often — it counts for <b>{other}</b>.</>); }
+    else if (secs < 3) { scored[side] += 2; setComm(<><b>{nm}</b> struck clean — a {secs.toFixed(1)}s call, buried in the top corner.</>); }
+    else if (secs < 10) { scored[side] += 1; setComm(<><b>{nm}</b> gets the nod — a {secs.toFixed(1)}s call, on target.</>); }
+    else { scored[side] += 1; setComm(<><b>{nm}</b> after a long look — {secs.toFixed(1)}s drags it wide, but it counts.</>); }
+    // crowd fills in the rest for flavour
+    const crowdH = 3 + (seedRef.current % 4), crowdA = 3 + ((seedRef.current >> 2) % 4);
+    setScore({ h: crowdH + scored.h, a: crowdA + scored.a });
+    setDone(true);
+    rerender();
+  };
+  const again = () => {
+    seedRef.current = Math.floor(Math.random() * 1e6);
+    openedAt.current = Date.now();
+    setPicked(null); setChanges(0); setShot(null); setScore({ h: 0, a: 0 });
+    setComm('Tap a side to cast your vote.'); setDone(false); rerender();
+  };
+
+  const n = joinCount(), pct = Math.min(100, Math.round(n / JOIN_GOAL * 100));
+  const join = () => { if (!ctx.id) { ctx.login(); return; } if (joinCup(ctx.id)) toast("You're in!"); rerender(); };
+
+  const winSide = done ? (score.h === score.a ? null : score.h > score.a ? 'h' : 'a') : null;
+
+  return (
+    <div className="panel demo-panel">
+      <h2 className="pt">Try the Demo</h2>
+      <p className="psub">A single sample match — see how a vote becomes a shot</p>
+      <p className="demo-lead">This is a <b>demo match</b> (it doesn’t affect the real tournament). Pick the artwork that pulls you in — your vote lands as a shot on goal, the crowd reacts, and full time is decided. Then help us reach <b>80 joins</b> so the Cup can start.</p>
+
+      <div className="demo-pitch">
+        <button className={'demo-side' + (winSide === 'h' ? ' win' : winSide === 'a' ? ' lose' : '')} aria-label="Pick left artwork" onClick={() => vote('h')}>
+          <img src={rosterImg(aId)} alt="" />
+          <span className="ds-lbl">{teamName(aId)}</span>
+          {shot && shot.side === 'h' && <span className="demo-shot" style={{ left: shot.x * 100 + '%', top: shot.y * 100 + '%', background: shot.own ? '#e0332b' : 'var(--gold-hi)' }} />}
+        </button>
+        <div className="demo-vs">VS</div>
+        <button className={'demo-side' + (winSide === 'a' ? ' win' : winSide === 'h' ? ' lose' : '')} aria-label="Pick right artwork" onClick={() => vote('a')}>
+          <img src={rosterImg(bId)} alt="" />
+          <span className="ds-lbl">{teamName(bId)}</span>
+          {shot && shot.side === 'a' && <span className="demo-shot" style={{ left: shot.x * 100 + '%', top: shot.y * 100 + '%', background: shot.own ? '#e0332b' : 'var(--gold-hi)' }} />}
+        </button>
+      </div>
+      <div className="demo-score"><span>{score.h}</span><span className="ds-sep">–</span><span>{score.a}</span></div>
+      <div className="demo-comm">{comm}</div>
+      <div className="demo-cta"><button className="btn" onClick={again}>New demo match</button></div>
+
+      <hr className="home-rule" style={{ margin: '22px auto 0' }} />
+      <div className="join-row" style={{ marginTop: 22 }}>
+        <div className="join-count"><span>{n}</span> <span className="join-sub">/ {JOIN_GOAL} joined — the Cup starts at 80</span></div>
+        <div className="join-bar"><i style={{ width: pct + '%' }} /></div>
+      </div>
+      <div className="launch-cta" style={{ justifyContent: 'center' }}><button className="home-cta" onClick={join}>Join &amp; get the Cup started</button></div>
     </div>
   );
 }
@@ -344,7 +578,7 @@ function getMqCfg(matchId) {
 function setMqCfg(matchId, cfg) {
   if (!matchId) return;
   try {
-    if (cfg && (cfg.text || cfg.img || cfg.color || cfg.bg)) localStorage.setItem(mqKey(matchId), JSON.stringify(cfg));
+    if (cfg && (cfg.text || cfg.img || cfg.color || cfg.bg || cfg.link)) localStorage.setItem(mqKey(matchId), JSON.stringify(cfg));
     else localStorage.removeItem(mqKey(matchId));
   } catch (e) { /* ignore */ }
 }
@@ -383,18 +617,34 @@ function Marquee({ edge, matchId }) {
   );
 }
 
-/* deterministic 0..7 cell from a string seed (stable across per-second ticks) */
-function shotCellFromSeed(seed, salt) {
-  let hsh = 0; const str = String(seed) + '|' + (salt || '');
-  for (let i = 0; i < str.length; i++) { hsh = (hsh * 31 + str.charCodeAt(i)) | 0; }
-  hsh = Math.abs(hsh);
-  return { col: hsh % 8, row: (Math.floor(hsh / 8)) % 8 };
+/* Shot placement varies with decision speed + vote changes (ported from the
+   mini's shotPlacement): fast → near-central strike, slow → drifts wide, each
+   change nudges off-target, >2 changes → OWN GOAL (ball in the voter's own net,
+   reads red). Returns {x,y,own} as fractions of the chosen HALF. */
+function shotPlacement(seed, side, ms, changes) {
+  ms = +ms || 0; changes = +changes || 0;
+  const bucket = ms < 3000 ? 'fast' : ms < 10000 ? 'med' : 'slow';
+  const own = changes > 2;
+  let h = 2166136261 >>> 0; const str = String(seed) + '|' + side + '|' + bucket + '|' + changes;
+  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } h = h >>> 0;
+  const j1 = ((h & 0xff) / 255) - 0.5, j2 = (((h >> 8) & 0xff) / 255) - 0.5;
+  const goalX = side === 'l' ? 0.10 : 0.90, centreX = side === 'l' ? 0.30 : 0.70;
+  let x, y, spread;
+  if (bucket === 'fast') { x = goalX + (centreX - goalX) * 0.15; spread = 0.06; }
+  else if (bucket === 'med') { x = goalX + (centreX - goalX) * 0.45; spread = 0.16; }
+  else { x = goalX + (centreX - goalX) * 0.85; spread = 0.30; }
+  y = 0.5 + j1 * spread * 2; x = x + j2 * spread;
+  const nudge = Math.min(changes, 2) * 0.12;
+  y = 0.5 + (y - 0.5) * (1 + nudge); x = x + (side === 'l' ? -nudge * 0.35 : nudge * 0.35);
+  if (own) { x = side === 'l' ? 0.04 : 0.96; y = 0.5 + j1 * 0.18; }
+  x = Math.max(0.05, Math.min(0.95, x)); y = Math.max(0.12, Math.min(0.88, y));
+  return { x, y, own };
 }
-function ShotOverlay({ side, seed }) {
-  const c = shotCellFromSeed(seed, side);
+function ShotOverlay({ side, seed, rec }) {
+  const p = shotPlacement(seed, side, rec ? rec.decisionMs : 0, rec ? rec.changes : 0);
   return (
-    <div className={'shot-ov shot-' + side}>
-      <div className="shot-cell" style={{ left: (c.col / 8 * 100) + '%', top: (c.row / 8 * 100) + '%' }} />
+    <div className={'shot-ov shot-' + side + (p.own ? ' shot-own' : '')}>
+      <div className="shot-cell" style={{ left: (p.x * 100) + '%', top: (p.y * 100) + '%', background: p.own ? '#e0332b' : 'var(--gold-hi)' }} />
     </div>
   );
 }
@@ -403,7 +653,7 @@ function ShotOverlay({ side, seed }) {
    (50-100%); field-2 markings overlay (-100..1700); solid black goal boxes
    (1 cell x 2 cells, rows 3-4) sticking out one cell each side; vote zones over
    the two image rects only; center state; voted shot overlay; FT extras. */
-function PitchField({ aId, bId, zones, state, extra, votedSide, votedSeed, pitch }) {
+function PitchField({ aId, bId, zones, state, extra, votedSide, votedSeed, votedRec, pitch }) {
   /* Each match uses ONE pitch image behind BOTH halves, with the transparent
      team art layered ON TOP (multiple backgrounds: art first = top layer). */
   const halfBg = (id, kit) => {
@@ -415,11 +665,11 @@ function PitchField({ aId, bId, zones, state, extra, votedSide, votedSeed, pitch
       <div className="pitch-imgs">
         <div className="pitch-half half hl" style={{ backgroundImage: halfBg(aId, 'home'), backgroundSize: 'cover, cover', backgroundPosition: 'center, center' }}>
           {aId && <div className="shot-hover"><div className="shot-cell" /></div>}
-          {votedSide === 'l' && <ShotOverlay side="l" seed={votedSeed} />}
+          {votedSide === 'l' && <ShotOverlay side="l" seed={votedSeed} rec={votedRec} />}
         </div>
         <div className="pitch-half half hr" style={{ backgroundImage: halfBg(bId, 'away'), backgroundSize: 'cover, cover', backgroundPosition: 'center, center' }}>
           {bId && <div className="shot-hover"><div className="shot-cell" /></div>}
-          {votedSide === 'r' && <ShotOverlay side="r" seed={votedSeed} />}
+          {votedSide === 'r' && <ShotOverlay side="r" seed={votedSeed} rec={votedRec} />}
         </div>
       </div>
       <FieldSvg />
@@ -435,8 +685,19 @@ function PitchField({ aId, bId, zones, state, extra, votedSide, votedSeed, pitch
 /* board = one-cell marquee FRAME (z below) + the 1600x800 play area (z above)
    + signboard edit button. The play area sits inside the marquee frame. */
 function Board({ children, phaseClass, matchId, onEdit }) {
+  // Optional sponsor link — an owner-configured board becomes clickable.
+  const cfg = getMqCfg(matchId);
+  const link = cfg && cfg.link ? cfg.link : null;
+  const owner = isOwner();
+  const openLink = (e) => {
+    if (!link) return;
+    // don't trigger when clicking the edit button or the play area / vote zones
+    if (e.target.closest && (e.target.closest('.mq-edit') || e.target.closest('.board-inner'))) return;
+    try { window.open(link, '_blank', 'noopener,noreferrer'); } catch (err) { /* noop */ }
+  };
   return (
-    <div className="board">
+    <div className={'board' + (link ? ' board-linked' : '')} onClick={link ? openLink : undefined}
+      title={link ? 'Sponsored — ' + link : undefined} style={link ? { cursor: 'pointer' } : undefined}>
       {/* marquee frame — rendered BELOW the play area (lower z-index) */}
       <Marquee edge="top" matchId={matchId} />
       <Marquee edge="bottom" matchId={matchId} />
@@ -446,7 +707,7 @@ function Board({ children, phaseClass, matchId, onEdit }) {
       <div className={'board-inner play-area' + (phaseClass ? ' ' + phaseClass : '')}>
         {children}
       </div>
-      {matchId && (
+      {matchId && owner && (
         <button className="mq-edit" title="Edit signboards" aria-label="Edit signboards"
           onClick={(e) => { e.stopPropagation(); onEdit(); }}>✎</button>
       )}
@@ -507,6 +768,30 @@ function Scoreboard({ t, tl, finished, winner }) {
         <div className="sb-nm">{teamName(t.b)}</div>
         <div className="sb-score"><AnimatedNumber value={tl.R} /></div>
       </div>
+    </div>
+  );
+}
+
+/* Scoreboard TIME box — in its OWN box stacked directly above the team-score
+   box (left phase, centered time, right hint). Ported from the mini's
+   .scoretime / .scoreband. On mobile both span the full field width (CSS). */
+function ScoreTime({ mc, picked }) {
+  const phase = mc.phase;
+  const live = phase === '1H' || phase === '2H';
+  const ft = phase === 'ft';
+  const cls = 'scoretime ' + (live ? 'live' : ft ? 'ft' : phase === 'HT' ? 'ht' : 'ko');
+  let l = '', c = '', r = '';
+  if (phase === 'KO') { l = 'Pre-Match'; c = 'KICKOFF'; r = 'Kickoff in ' + Math.ceil(mc.remain) + 's'; }
+  else if (phase === '1H') { l = '1st Half'; c = mc.up + "'"; r = picked ? 'Shoot!' : 'Make your pick'; }
+  else if (phase === 'HT') { l = 'Halftime'; c = 'HALFTIME'; r = 'Back in ' + Math.ceil(mc.remain) + 's'; }
+  else if (phase === '2H') { l = '2nd Half'; c = mc.up + "'"; r = picked ? 'Shoot!' : 'Make your pick'; }
+  else if (ft) { l = 'Full Time'; c = 'FULL TIME'; r = 'Next in ' + Math.ceil(mc.remain) + 's'; }
+  else { l = 'Upcoming'; c = '—'; r = ''; }
+  return (
+    <div className={cls}>
+      <span className="st-l">{l}</span>
+      <span className="st-c">{c}</span>
+      <span className="st-r">{r}</span>
     </div>
   );
 }
@@ -734,6 +1019,7 @@ function MatchPanel({ ctx, f, rerender }) {
         <Board matchId={mId} phaseClass="ht" onEdit={() => setSbOpen(true)}>
           <PitchField aId={t.a} bId={t.b} pitch={pitchImg(f)} state={htState} />
         </Board>
+        <ScoreTime mc={mc} picked={!!mv} />
         <Scoreboard t={t} tl={tl} finished={false} />
         <p className="sb-sub">Take your shot. Choose your Opepen. Left, or Right?</p>
         <MatchInfo ctx={ctx} f={f} t={t} mId={mId} />
@@ -764,6 +1050,7 @@ function MatchPanel({ ctx, f, rerender }) {
         <Board matchId={mId} phaseClass="ft-win" onEdit={() => setSbOpen(true)}>
           <PitchField aId={t.a} bId={t.b} pitch={pitchImg(f)} state={null} extra={extra} />
         </Board>
+        <ScoreTime mc={mc} picked={!!mv} />
         <Scoreboard t={t} tl={tl} finished winner={w} />
         <p className="sb-sub">{teamName(w)} go through. Hover the artwork for the match stats layer.</p>
         <MatchInfo ctx={ctx} f={f} t={t} mId={mId} />
@@ -786,8 +1073,9 @@ function MatchPanel({ ctx, f, rerender }) {
       {TitleRow}{StatusRow}
       <Board matchId={mId} onEdit={() => setSbOpen(true)}>
         <PitchField aId={t.a} bId={t.b} pitch={pitchImg(f)} zones={zones} state={stateNode} extra={extra}
-          votedSide={mv ? (mv.side === 'LFT' ? 'l' : 'r') : null} votedSeed={mId} />
+          votedSide={mv ? (mv.side === 'LFT' ? 'l' : 'r') : null} votedSeed={mId} votedRec={mv} />
       </Board>
+      <ScoreTime mc={mc} picked={!!mv} />
       <Scoreboard t={t} tl={tl} finished={false} />
       <p className="sb-sub">Take your shot. Choose your Opepen. Left, or Right?</p>
       <MatchInfo ctx={ctx} f={f} t={t} mId={mId} />
@@ -803,6 +1091,7 @@ function SignboardEditor({ matchId, onClose }) {
   const [img, setImg] = useState(cfg.img || null);
   const [color, setColor] = useState(cfg.color || '#5a5a5a');
   const [bg, setBg] = useState(cfg.bg || '#070707');
+  const [link, setLink] = useState(cfg.link || '');
   const onFile = (e) => {
     const file = e.target.files && e.target.files[0]; if (!file) return;
     const rd = new FileReader();
@@ -829,8 +1118,10 @@ function SignboardEditor({ matchId, onClose }) {
         <label className="sb-lbl">Upload image (tiled banner)</label>
         <input type="file" accept="image/*" className="sb-file" onChange={onFile} />
         <div className="sb-prev">{img && <img src={img} alt="preview" style={{ maxHeight: 40, maxWidth: '100%', objectFit: 'contain' }} />}</div>
+        <label className="sb-lbl">Link URL (optional — makes the board clickable)</label>
+        <input type="url" className="sb-text" placeholder="https://your-sponsor.com" value={link} onChange={(e) => setLink(e.target.value)} />
         <div className="sb-row">
-          <button className="sb-btn sb-save" onClick={() => { setMqCfg(matchId, { text, img, color, bg }); toast('Signboard updated for this match'); onClose(); }}>Save</button>
+          <button className="sb-btn sb-save" onClick={() => { setMqCfg(matchId, { text, img, color, bg, link }); toast('Signboard updated for this match'); onClose(); }}>Save</button>
           <button className="sb-btn sb-clear" onClick={() => { setMqCfg(matchId, null); toast('Signboard reset to default'); onClose(); }}>Clear / Reset</button>
         </div>
       </div>

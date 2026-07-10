@@ -16,7 +16,8 @@ const LS = (k) => 'owc:' + k;
 const cache = {};
 
 function sharedKey(k) {
-  return k.startsWith('vote:') || k.startsWith('chat:') || k.startsWith('cmt:') || k.startsWith('player:');
+  return k.startsWith('vote:') || k.startsWith('chat:') || k.startsWith('cmt:') || k.startsWith('player:')
+    || k.startsWith('meta:') || k.startsWith('join:');
 }
 
 export const storage = {

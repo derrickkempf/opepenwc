@@ -263,8 +263,114 @@ export function getChat() { return storage.list('chat:').keys.map((k) => J.get(k
 export function postComment(mId, id, name, color, text) { J.set('cmt:' + mId + ':' + rid(), { idId: id, name, color, text: text.slice(0, 200), ts: Date.now() }); }
 export function getComments(mId) { return storage.list('cmt:' + mId + ':').keys.map((k) => J.get(k, null)).filter(Boolean).sort((a, b) => a.ts - b.ts); }
 
+/* ============================================================
+   LAUNCH GATE — the real tournament is LOCKED until JOIN_GOAL people
+   join; then a 24-hour countdown; then matches run. Joins + the launch
+   timestamp are SHARED via Supabase (storage.js promotes join:/meta:
+   keys to the kv table). One join per authenticated Privy user id.
+   ?forcelive=1 (or localStorage owc:forcelive=1) overrides for testing.
+   ============================================================ */
+export const JOIN_GOAL = 80;
+export const KICKOFF_MS = 24 * 60 * 60 * 1000; // 24h
+
+export function isForceLive() {
+  try {
+    if (new URLSearchParams(location.search).get('forcelive') === '1') { localStorage.setItem('owc:forcelive', '1'); }
+    return localStorage.getItem('owc:forcelive') === '1';
+  } catch { return false; }
+}
+
+/* Every unique join is a shared row join:<id>. Guests that arrive via a ?ref=
+   link also count toward the goal (join:ref:<code>), so the crowd can build
+   before everyone signs in. */
+export function joinCount() { return storage.list('join:').keys.length; }
+export function hasJoined(id) { if (!id) return false; return !!storage.get('join:' + id); }
+export function joinCup(id) {
+  if (!id) return false;
+  const key = 'join:' + id;
+  if (storage.get(key)) return false;
+  storage.set(key, JSON.stringify({ ts: Date.now() }));
+  maybeStartKickoff();
+  return true;
+}
+/* a ?ref= visit from a not-yet-signed-in guest still nudges the count. */
+export function countRefVisit(code) {
+  if (!code) return;
+  const key = 'join:ref:' + code + ':' + refCode();
+  if (storage.get(key)) return;
+  storage.set(key, JSON.stringify({ ts: Date.now(), ref: code }));
+  maybeStartKickoff();
+}
+
+/* the shared launch timestamp (kickoff of the whole tournament). Set ONCE the
+   moment the goal is reached. Stored at meta:launch. */
+export function launchKickoff() {
+  const r = J.get('meta:launch', null);
+  return r && r.kickoff ? r.kickoff : 0;
+}
+export function maybeStartKickoff() {
+  if (joinCount() < JOIN_GOAL) return;
+  if (launchKickoff() > 0) return;
+  J.set('meta:launch', { kickoff: Date.now() + KICKOFF_MS });
+}
+/* effective tournament start: forcelive → the demo anchor (START_BASE);
+   else the shared launch time; else 0 (locked). */
+export function tournamentStart() {
+  if (isForceLive()) return START_BASE;
+  return launchKickoff();
+}
+/* high-level phase for the Play gate: 'locked' | 'pre' | 'live'. */
+export function launchPhase() {
+  if (isForceLive()) return 'live';
+  const start = tournamentStart();
+  if (start === 0) return 'locked';
+  if (Date.now() < start) return 'pre';
+  return 'live';
+}
+export function preKickoffLeftMs() {
+  const start = tournamentStart();
+  if (start === 0) return 0;
+  return Math.max(0, start - Date.now());
+}
+
+/* ===== owner flag (signboard editing) =====
+   Editing the advertising boards is owner-gated. Unlock with ?owner=<passcode>
+   (ADMIN_PASSCODE); the flag persists in localStorage owc:owner. Everyone else
+   sees the boards read-only. */
+export function isOwner() {
+  try {
+    const p = new URLSearchParams(location.search).get('owner');
+    if (p && p === ADMIN_PASSCODE) localStorage.setItem('owc:owner', '1');
+    return localStorage.getItem('owc:owner') === '1';
+  } catch { return false; }
+}
+
+/* ===== share-to-earn: stable per-user referral code ===== */
+export function refCode() {
+  let c = null;
+  try { c = localStorage.getItem('owc:refcode'); } catch { /* noop */ }
+  if (!c) {
+    c = (Date.now().toString(36) + Math.random().toString(36).slice(2, 6)).slice(-6).toUpperCase();
+    try { localStorage.setItem('owc:refcode', c); } catch { /* noop */ }
+  }
+  return c;
+}
+export function refLink(code) {
+  const c = code || refCode();
+  const base = SHARE_URL.replace(/\/$/, '');
+  return base + '/?ref=' + c;
+}
+/* award TP for sharing, once per day (up to 5/day via earnShare pool). */
+export function earnShareTP() { return earnShare(); }
+
 /* ===== util ===== */
 export function nFmt(n) { return Number(n).toLocaleString('en-US'); }
+export function fmtHMS(ms) {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+  const p = (x) => String(x).padStart(2, '0');
+  return p(h) + ':' + p(m) + ':' + p(sec);
+}
 export function ago(ts) { const s = Math.floor((Date.now() - ts) / 1000); if (s < 60) return 'just now'; if (s < 3600) return Math.floor(s / 60) + 'm'; if (s < 86400) return Math.floor(s / 3600) + 'h'; return Math.floor(s / 86400) + 'd'; }
 export function fmtDay(ts) { return new Date(ts).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }); }
 export function fmtTime(ts) { return new Date(ts).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); }
